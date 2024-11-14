@@ -43,24 +43,62 @@ def generate_random_spheres(num_spheres, radius_range, space_dim, concentration_
     
     return spheres
 
-# Trees
+
+### TREES ###
+
+# Cylinder Class
 class CylinderObstacle:
-    def __init__(self, base_center, height, radius):
-        self.base_center = np.array(base_center)
+    def __init__(self, center, height, radius):
+        self.center = np.array(center)
         self.height = height
         self.radius = radius
 
-    def is_inside(self, position):
-        x, y, z = position
-        x0, y0, z0 = self.base_center
+    def is_inside(self, point, inflation=0.0):
+        """
+        Check if a position is inside the cylindrical obstacle.
+
+        Args:
+            point (tuple or list): The position to check (x, y), or (x, y, z).
+            inflation (float): Safety margin added to the cylinder's radius and height.
+
+        Returns:
+            bool: True if the point is inside the cylinder, False otherwise.
+        """
+        # Handle 2D and 3D inputs
+        if len(point) == 2:  # If 2D point
+            x, y = point
+            z = 0  # Assume z = 0 for 2D positions
+        else:  # If 3D point
+            x, y, z = point
+
+        # Cylinder center coordinates
+        x0, y0, z0 = self.center
 
         # Check horizontal distance
         horizontal_distance = np.sqrt((x - x0)**2 + (y - y0)**2)
-        if horizontal_distance > self.radius:
+        if horizontal_distance > self.radius + inflation:
             return False
 
         # Check vertical bounds
-        if z < z0 or z > z0 + self.height:
+        if z < z0 or z > z0 + self.height + inflation:
             return False
 
         return True
+    
+def is_point_in_collision(point, obstacles, inflation=0.0):
+    """
+    Check if a given point is in collision with any of the obstacles. 
+    Works both in 2D and 3D.
+
+    Args:
+        point (tuple): The point to check (x, y), or (x, y, z).
+        obstacles (list): List of Obstacle objects.
+        inflation (float): Amount to inflate the obstacle radii for safety.
+
+    Returns:
+        bool: True if the position is in collision, False otherwise.
+    """
+    for obstacle in obstacles:
+        if obstacle.is_inside(point, inflation):
+            return True
+    return False

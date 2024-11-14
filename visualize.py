@@ -7,7 +7,7 @@ import numpy as np
 from obstacles import SphereObstacle
 from astar import a_star_3d
 from rrt import rrt
-from rrt_star import rrt_star
+from rrt_star import rrt_star, plot_rrt_attempts
 from smooth_path import smooth_path_with_collision_avoidance
 
 def generate_random_spheres_along_line(num_spheres, radius_range, start_pos, goal_pos, spread=5.0, min_distance=5.0, concentration_factor=0.8):
@@ -82,50 +82,6 @@ def plot_obstacle_with_boundary(ax, obstacle, inflation=0.5):
     # Plot safety boundary
     inflated_radius = obstacle.radius + inflation
     plot_sphere(ax, obstacle.center, inflated_radius, color='lightblue', alpha=0.3)
-
-def plot_rrt_attempts(space_dim, start_pos, goal_pos, tree, obstacles):
-    """
-    Plot the sampled points and tree for RRT attempts with gradient-colored branches.
-
-    Args:
-        space_dim (tuple): Dimensions of the 3D space (x, y, z).
-        start_pos (tuple): Starting position.
-        goal_pos (tuple): Goal position.
-        tree (list): List of Node objects representing the RRT tree.
-        obstacles (list): List of SphereObstacle objects.
-    """
-    import matplotlib.pyplot as plt
-    from mpl_toolkits.mplot3d import Axes3D
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.set_xlim(0, space_dim[0])
-    ax.set_ylim(0, space_dim[1])
-    ax.set_zlim(0, space_dim[2])
-
-    # Plot obstacles with boundaries
-    for obstacle in obstacles:
-        plot_obstacle_with_boundary(ax, obstacle, inflation=0.5)
-
-    # Plot start and goal positions
-    ax.scatter(*start_pos, color='blue', s=50, label='Start')
-    ax.scatter(*goal_pos, color='red', s=50, label='Goal')
-
-    # Plot the RRT tree with gradient coloring
-    num_nodes = len(tree)
-    for i, node in enumerate(tree):
-        if node.parent is not None:
-            color_intensity = i / num_nodes  # Scale intensity by node index
-            ax.plot(
-                [node.position[0], node.parent.position[0]],
-                [node.position[1], node.parent.position[1]],
-                [node.position[2], node.parent.position[2]],
-                color=(1 - color_intensity, 1 - color_intensity, color_intensity),  # Gradient color (from green to blue)
-                alpha=0.8
-            )
-
-    plt.legend()
-    plt.show()
 
 def plot_final_path(space_dim, start_pos, goal_pos, path, smoothed_path, obstacles):
     fig = plt.figure()
