@@ -7,9 +7,9 @@ class SphereObstacle:
         self.center = np.array(center)
         self.radius = radius
 
-    def is_inside(self, point):
-        """Check if a point is inside this sphere."""
-        return np.linalg.norm(point - self.center) <= self.radius
+    def is_inside(self, position, inflation=0.0):
+        """Check if a position is inside the sphere with optional inflation."""
+        return np.linalg.norm(np.array(position) - self.center) <= (self.radius + inflation)
 
 def generate_random_spheres(num_spheres, radius_range, space_dim, concentration_factor=0.2):
     """
@@ -42,3 +42,25 @@ def generate_random_spheres(num_spheres, radius_range, space_dim, concentration_
         spheres.append(SphereObstacle(center=center, radius=radius))
     
     return spheres
+
+# Trees
+class CylinderObstacle:
+    def __init__(self, base_center, height, radius):
+        self.base_center = np.array(base_center)
+        self.height = height
+        self.radius = radius
+
+    def is_inside(self, position):
+        x, y, z = position
+        x0, y0, z0 = self.base_center
+
+        # Check horizontal distance
+        horizontal_distance = np.sqrt((x - x0)**2 + (y - y0)**2)
+        if horizontal_distance > self.radius:
+            return False
+
+        # Check vertical bounds
+        if z < z0 or z > z0 + self.height:
+            return False
+
+        return True
