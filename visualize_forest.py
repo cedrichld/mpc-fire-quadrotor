@@ -219,8 +219,8 @@ if __name__ == "__main__":
 
     # Define 3D space dimensions and parameters
     space_dim = (50, 50, 20)
-    grid_size = 20  # Define a grid
-    radius_range = (0.15, 0.55)
+    grid_size = 25  # Define a grid
+    radius_range = (0.1, 0.25)
     height_range = (5.0, 15.0)
     zone_center = (25, 25)
     zone_radius = 10
@@ -258,6 +258,7 @@ if __name__ == "__main__":
         adjusted_goal_pos = adjust_goal_position_smoothly(
             goal_pos[:2], obstacles, inflation=0.05, step_size=0.5, max_attempts=50
         )
+        
         if adjusted_goal_pos is None:
             print("No valid goal position could be determined.")
             exit()
@@ -312,7 +313,10 @@ if __name__ == "__main__":
         fig, ax = visualize_forest_2d(space_dim[:2], trees_outside, fire_zone, start_pos, goal_pos, trees_inside)
         
         start_time = time.perf_counter()
-        path, tree = rrt_star(start_pos[:2], goal_pos[:2], obstacles, space_dim[:2], dim=2)
+        path, tree = rrt_star(
+            start_pos[:2], goal_pos[:2], obstacles, space_dim, retries=10, dim=2
+        )
+
         end_time = time.perf_counter()
         elapsed_time = (end_time - start_time) * 1000
 
@@ -333,6 +337,7 @@ if __name__ == "__main__":
         else:
             print(f"RRT* failed to find a path in {elapsed_time:.2f} ms.")
         
+        # Plot RRT attempts
         plot_rrt_attempts(ax, tree, dim=2)
             
     plt.legend()

@@ -3,7 +3,7 @@ from scipy.interpolate import UnivariateSpline
 import numpy as np
 from obstacles import is_point_in_collision
 
-def smooth_path_with_collision_avoidance(path, obstacles, num_points=100, smoothing_factor=1):
+def smooth_path_with_collision_avoidance(path, obstacles, num_points=100, smoothing_factor=0.2):
     """
     Fit a spline with smoothing to the path and check for collisions.
     
