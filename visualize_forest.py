@@ -10,7 +10,10 @@ from astar import a_star_2d, a_star_3d
 from rrt_star import rrt_star, plot_rrt_attempts
 from smooth_path import smooth_path_with_collision_avoidance
 
-def generate_random_forest_with_grid(grid_size, radius_range, height_range, space_dim, zone_center, zone_radius, start_pos, min_start_distance):
+def generate_random_forest_with_grid(
+    grid_size, radius_range, height_range, space_dim, zone_center, 
+    zone_radius, start_pos, min_start_distance
+):
     """
     Generate a forest of cylindrical obstacles (Trees) using a grid-based approach.
 
@@ -214,7 +217,8 @@ def visualize_forest_2d(space_dim, obstacles, fire_zone, start_pos, goal_pos, fi
 if __name__ == "__main__":
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Visualize forest environment for path planning.")
-    parser.add_argument("mode", choices=["2d", "3d", "a_star_2d", "rrt_star_2d"], help="Visualization mode: '2d' for 2D visualization, '3d' for 3D visualization, 'a_star' for pathfinding.")
+    parser.add_argument("mode", choices=["2d", "3d", "a_star_2d", "rrt_star_2d"], 
+        help="Visualization mode: '2d' for 2D visualization, '3d' for 3D visualization, 'a_star' for pathfinding.")
     args = parser.parse_args()
 
     # Define 3D space dimensions and parameters
@@ -314,7 +318,7 @@ if __name__ == "__main__":
         
         start_time = time.perf_counter()
         path, tree = rrt_star(
-            start_pos[:2], goal_pos[:2], obstacles, space_dim, retries=10, dim=2
+            start_pos[:2], goal_pos[:2], obstacles, space_dim, dim=2
         )
 
         end_time = time.perf_counter()

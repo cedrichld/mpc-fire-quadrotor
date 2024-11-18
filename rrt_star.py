@@ -92,7 +92,7 @@ def refine_path_line_segments(path, obstacles, inflation, dim, n_points=6):
     return refined_path
 
 def rrt_star(
-    start_pos, goal_pos, obstacles, space_dim, max_iter=1000, step_size=1.5,
+    start_pos, goal_pos, obstacles, space_dim, max_iter=300, step_size=1.5,
     base_radius=0.1, retries=10, dim=2, goal_bias=0.5, inflation=0.65
 ):
     best_path = None
@@ -160,7 +160,8 @@ def rrt_star(
                 if path_cost < best_cost:
                     best_path = path[::-1]
                     best_cost = path_cost
-                    print(f"\rRRT* Retry {retry + 1}: Path found with cost {path_cost:.2f} on iteration {iteration + 1}", end="")
+                    best_iteration = iteration + 1
+                    # print(f"\rRRT* Retry {retry + 1}: Path found with cost {path_cost:.2f} on iteration {iteration + 1}", end="")
                 found_path = True
                 break
 
@@ -173,7 +174,7 @@ def rrt_star(
     else:
         sub_trees = []
 
-    print(f"Final best path cost: {best_cost:.2f}" if best_path else "\nNo path found.")
+    print(f"Final best path cost: {best_cost:.2f} on iteration {iteration + 1}" if best_path else "\nNo path found.")
     return best_path, tree
 
 
