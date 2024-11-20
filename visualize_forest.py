@@ -4,124 +4,13 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-from scipy.interpolate import splprep, splev
-from obstacles import CylinderObstacle, is_point_in_collision
-from astar import a_star_2d, a_star_3d
+
+from forrest_generation import generate_random_forest_with_grid
+from firezone import *
+from astar import a_star_2d
 from rrt_star import rrt_star, plot_rrt_attempts
-from smooth_path import smooth_path_with_collision_avoidance
-
-def generate_random_forest_with_grid(
-    grid_size, radius_range, height_range, space_dim, zone_center, 
-    zone_radius, start_pos, min_start_distance
-):
-    """
-    Generate a forest of cylindrical obstacles (Trees) using a grid-based approach.
-
-    Args:
-        grid_size (int): Number of grid cells along one axis (total grid cells = grid_size^2).
-        radius_range (tuple): Min and max radius for tree cylinders.
-        height_range (tuple): Min and max height for tree cylinders.
-        space_dim (tuple): Dimensions of the 3D space (x, y, z).
-        zone_center (tuple): Center of the fire zone (x, y).
-        zone_radius (float): Approximate radius for the fire zone boundary.
-        start_pos (tuple): Start position (x, y, z).
-        min_start_distance (float): Minimum allowed distance between trees and the start position.
-
-    Returns:
-        tuple: (list of CylinderObstacle objects, list of CylinderObstacle objects in fire zone)
-    """
-    obstacles = []
-    fire_zone_trees = []
-
-    # Calculate the size of each grid cell
-    grid_cell_size_x = space_dim[0] / grid_size
-    grid_cell_size_y = space_dim[1] / grid_size
-
-    # Iterate over grid cells
-    for i in range(grid_size):
-        for j in range(grid_size):
-            # Compute the center of the grid cell
-            cell_min_x = i * grid_cell_size_x
-            cell_max_x = (i + 1) * grid_cell_size_x
-            cell_min_y = j * grid_cell_size_y
-            cell_max_y = (j + 1) * grid_cell_size_y
-
-            # Randomly place a tree within the grid cell
-            radius = np.random.uniform(*radius_range)
-            height = np.random.uniform(*height_range)
-            x = np.random.uniform(cell_min_x + radius, cell_max_x - radius)
-            y = np.random.uniform(cell_min_y + radius, cell_max_y - radius)
-
-            center = np.array([x, y, 0])
-
-            # Check if the tree is too close to the start position
-            if np.linalg.norm(center[:2] - np.array(start_pos[:2])) < (radius + min_start_distance):
-                continue
-
-            # Check if the tree is in the fire zone
-            distance_to_fire_center = np.linalg.norm(np.array(zone_center) - center[:2])
-            if distance_to_fire_center < zone_radius:
-                fire_zone_trees.append(CylinderObstacle(center=center, height=height, radius=radius))
-            else:
-                obstacles.append(CylinderObstacle(center=center, height=height, radius=radius))
-
-    return obstacles, fire_zone_trees
-
-def generate_fire_zone(center, size):
-    """
-    Generate a fire zone represented as a closed 2D spline approximating an ellipse.
-
-    Args:
-        center (tuple): Approximate center of the fire zone.
-        size (float): Approximate size of the fire zone.
-
-    Returns:
-        tuple: (x, y) coordinates of the fire zone.
-    """
-    angle = np.linspace(0, 2 * np.pi, 10, endpoint=False)
-    radii = size * (0.8 + 0.4 * np.random.rand(len(angle)))  # Randomized radii for variation
-    control_points = np.column_stack((radii * np.cos(angle), radii * np.sin(angle))) + center[:2]
-    tck, _ = splprep(control_points.T, s=0.5, per=True)
-    u = np.linspace(0, 1, 100)
-    return splev(u, tck)
-
-def closest_point_on_spline(spline, point):
-    """
-    Find the closest point on a spline to a given point.
-
-    Args:
-        spline (tuple): The spline coordinates (x, y).
-        point (tuple): The target point (x, y).
-
-    Returns:
-        tuple: Closest point on the spline (x, y).
-    """
-    x_spline, y_spline = spline
-    distances = np.sqrt((np.array(x_spline) - point[0])**2 + (np.array(y_spline) - point[1])**2)
-    closest_index = np.argmin(distances)
-    return x_spline[closest_index], y_spline[closest_index]
-
-def adjust_goal_position_smoothly(goal_pos, obstacles, inflation, step_size=0.5, max_attempts=50):
-    """
-    Adjust the goal position to ensure it is not in collision.
-
-    Args:
-        goal_pos (tuple): Initial goal position (x, y).
-        obstacles (list): List of CylinderObstacle objects.
-        inflation (float): Amount to inflate the obstacle radii for safety.
-        step (float): Step size for searching nearby valid positions.
-        max_attempts (int): Maximum number of attempts to adjust the position.
-
-    Returns:
-        tuple: Adjusted goal position (x, y).
-    """
-    for _ in range(max_attempts):
-        if not is_point_in_collision(goal_pos, obstacles, inflation):
-            return goal_pos  # Valid position found
-        # Move goal slightly in random direction
-        direction = np.random.uniform(-1, 1, size=2)
-        goal_pos = np.array(goal_pos) + step_size * direction / np.linalg.norm(direction)
-    raise RuntimeError("Failed to adjust goal position within constraints.")
+from smooth_path import *
+from path_points_generation import *
 
 def visualize_forest(space_dim, obstacles, fire_zone, start_pos, goal_pos, fire_zone_trees=None):
     """
@@ -241,15 +130,42 @@ if __name__ == "__main__":
 
     # Generate forest using grid-based approach
     trees_outside, trees_inside = generate_random_forest_with_grid(
-        grid_size, radius_range, height_range, space_dim, zone_center, zone_radius, start_pos, min_start_distance
+        grid_size, radius_range, height_range, space_dim, fire_zone, start_pos, min_start_distance
     )
 
     # Handle different modes
     if args.mode == "3d":
         visualize_forest(space_dim, trees_outside, fire_zone, start_pos, goal_pos, trees_inside)
     elif args.mode == "2d":
-        visualize_forest_2d(space_dim[:2], trees_outside, fire_zone, start_pos, goal_pos, trees_inside)
-    
+        fig, ax = visualize_forest_2d(space_dim[:2], trees_outside, fire_zone, start_pos, goal_pos, trees_inside)
+
+        # Test points from (0, 0) to (50, 50)
+        test_points_x, test_points_y = np.meshgrid(np.linspace(0, 50, 200), np.linspace(0, 50, 200))
+        test_points = np.column_stack((test_points_x.ravel(), test_points_y.ravel()))
+
+        # Check if points are in the fire zone
+        inside_points = []
+        outside_points = []
+        for point in test_points:
+            if is_point_in_fire_zone(fire_zone, point):
+                inside_points.append(point)
+            else:
+                outside_points.append(point)
+
+        # Separate inside and outside points for visualization
+        inside_points = np.array(inside_points)
+        outside_points = np.array(outside_points)
+
+        # Plot inside and outside points
+        if inside_points.size > 0:
+            ax.scatter(inside_points[:, 0], inside_points[:, 1], color='red', s=0.02, label="Inside Fire Zone")
+        if outside_points.size > 0:
+            ax.scatter(outside_points[:, 0], outside_points[:, 1], color='blue', s=0.02, label="Outside Fire Zone")
+
+        plt.legend()
+        plt.gca().set_aspect('equal', adjustable='box')
+        plt.show()
+
     ## A*
     elif args.mode == "a_star_2d":
         # Combine trees for obstacle input
@@ -330,19 +246,43 @@ if __name__ == "__main__":
 
             # Smooth the path
             smoothed_path = smooth_path_with_collision_avoidance(path, obstacles)
+                        
+            # Get points at 1/5, 2/5, and 3/5 of the total trajectory time
+            points_to_plot = []
+            for t in [1.0, 2.0, 3.0]:
+                point= smooth_path_at_t(smoothed_path, t)
+                points_to_plot.append(point)
+            
             smoothed_path_x, smoothed_path_y = smoothed_path[:2]
-
+            
+            # Generate extinguishing path points
+            extinguishing_path = []
+            for i in range(len(smoothed_path_x)):
+                point = (smoothed_path_x[i], smoothed_path_y[i])
+                if is_point_in_fire_zone(fire_zone, point):
+                    extinguishing_path.append(point)
+                    
             # Visualize in 2D
             path_x, path_y = zip(*path)
             ax.plot(path_x, path_y, color='purple', linewidth=2, label='RRT* Path')
-
-            # Smoothed path
             ax.plot(smoothed_path_x, smoothed_path_y, color='cyan', linestyle='--', linewidth=2, label='Smoothed Path')
+            
+            # Plot specific points
+            for i, point in enumerate(points_to_plot, start=1):
+                ax.scatter(point[0], point[1], color='red', label=f'Point {i} at {i}/5 tf')
+                ax.annotate(f"P{i}", (point[0], point[1]))
+            
+            # Generate and visualize extinguishing path
+            extinguishing_path = generate_extinguishing_path(fire_zone, step_size=0.5, inward_translation=0.5)
+            if extinguishing_path:
+                ext_x, ext_y = zip(*extinguishing_path)
+                ax.plot(ext_x, ext_y, color='orange', linewidth=1, linestyle='-', label='Extinguishing Path')
+                
         else:
             print(f"RRT* failed to find a path in {elapsed_time:.2f} ms.")
         
         # Plot RRT attempts
-        plot_rrt_attempts(ax, tree, dim=2)
+        # plot_rrt_attempts(ax, tree, dim=2)
             
     plt.legend()
     plt.gca().set_aspect('equal', adjustable='box')
