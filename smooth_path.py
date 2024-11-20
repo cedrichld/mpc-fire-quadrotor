@@ -63,43 +63,7 @@ def smooth_path_with_collision_avoidance(path, obstacles, num_points=200, smooth
         return np.array(x_final), np.array(y_final), np.array(z_final)
     return np.array(x_final), np.array(y_final)
 
-def smooth_path_at_t(smooth_path, t, avg_vel=None, tf=None, max_avg_vel=2.0):
-    """
-    Generates the total length, segment lengths, and time duration for the smooth path.
-    
-    Args:
-        smooth_path (ndarray): Smoothed path coordinates (N x 2 or N x 3).
-        avg_vel (float, optional): Average velocity to traverse the path. Defaults to max_avg_vel.
-        tf (float, optional): Total time to complete the trajectory. If None, inferred from avg_vel.
-        max_avg_vel (float, optional): Maximum velocity constraint. Default is 2.0 m/s.
-    
-    Returns:
-        tuple: Position on the path at time t (x, y, [z]).
-    """
-    smooth_path = np.array(smooth_path)  # Ensure it is a numpy array
-    num_points = smooth_path.shape[1] # Total number of points in the path
-    
-    # Calculate segment lengths and cumulative path length
-    segment_lengths = np.linalg.norm(np.diff(smooth_path, axis=0), axis=1)
-    total_length = np.sum(segment_lengths)
-    
-    # Determine avg_vel if not provided
-    if avg_vel is None:
-        avg_vel = max_avg_vel
-    
-    # Calculate tf if not provided
-    if tf is None:
-        tf = total_length / avg_vel
-    
-    t = max(0, min(t, tf)) # Ensure t is within [0, tf]
-    index = int(round((t / tf) * (num_points - 1)))
 
-    return tuple(smooth_path[:, index])
-
-
-
-
-'''
 def smooth_path_discretized(smooth_path, avg_vel=None, tf=None, max_avg_vel=2.0):
     """
     Generates the total length, segment lengths, and time duration for the smooth path.
@@ -127,8 +91,32 @@ def smooth_path_discretized(smooth_path, avg_vel=None, tf=None, max_avg_vel=2.0)
     if tf is None:
         tf = total_length / avg_vel
     
-    return total_length, segment_lengths, tf
+    return tf
 
+def smooth_path_at_t(smooth_path, t, tf):
+    """
+    Generates the total length, segment lengths, and time duration for the smooth path.
+    
+    Args:
+        smooth_path (ndarray): Smoothed path coordinates (N x 2 or N x 3).
+        avg_vel (float, optional): Average velocity to traverse the path. Defaults to max_avg_vel.
+        tf (float, optional): Total time to complete the trajectory. If None, inferred from avg_vel.
+        max_avg_vel (float, optional): Maximum velocity constraint. Default is 2.0 m/s.
+    
+    Returns:
+        tuple: Position on the path at time t (x, y, [z]).
+    """
+    smooth_path = np.array(smooth_path)  # Ensure it is a numpy array
+    num_points = smooth_path.shape[1] # Total number of points in the path
+    
+    t = max(0, min(t, tf)) # Ensure t is within [0, tf]
+    index = int(round((t / tf) * (num_points - 1)))
+
+    return tuple(smooth_path[:, index])
+
+
+
+'''
 def smooth_path_at_t(total_length, smooth_path, segment_lengths, t, tf):
     """
     Computes the position on the smooth path at a given time t.

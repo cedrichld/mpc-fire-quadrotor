@@ -249,8 +249,10 @@ if __name__ == "__main__":
                         
             # Get points at 1/5, 2/5, and 3/5 of the total trajectory time
             points_to_plot = []
+            tf = smooth_path_discretized(smoothed_path)
+            print(f"Total time to path: {tf}s at 2.0 m/s")
             for t in [1.0, 2.0, 3.0]:
-                point= smooth_path_at_t(smoothed_path, t)
+                point= smooth_path_at_t(smoothed_path, t, tf)
                 points_to_plot.append(point)
             
             smoothed_path_x, smoothed_path_y = smoothed_path[:2]
