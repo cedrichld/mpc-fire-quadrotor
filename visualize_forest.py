@@ -246,14 +246,38 @@ if __name__ == "__main__":
 
             # Smooth the path
             smoothed_path = smooth_path_with_collision_avoidance(path, obstacles)
-                        
-            # Get points at 1/5, 2/5, and 3/5 of the total trajectory time
-            points_to_plot = []
-            tf = smooth_path_discretized(smoothed_path)
-            print(f"Total time to path: {tf}s at 2.0 m/s")
-            for t in [1.0, 2.0, 3.0]:
-                point= smooth_path_at_t(smoothed_path, t, tf)
-                points_to_plot.append(point)
+            
+            smooth_path_disc_test = False
+            if (smooth_path_disc_test):            
+                # Get points at 1/5, 2/5, and 3/5 of the total trajectory time
+                points_to_plot = []  
+                velocity_vectors = []
+                tf = smooth_path_discretized(smoothed_path)
+                print(f"Total time to path: {tf}s at 2.0 m/s")
+                
+                t_array = np.linspace(0.1, tf - 0.1, 10)
+                for t in t_array:
+                    point = smooth_path_pos_t(smoothed_path, t, tf)
+                    velocity = smooth_path_vel_t(smoothed_path, t, tf)
+                    
+                    points_to_plot.append(point)
+                    velocity_vectors.append(velocity)
+                
+                # Plot specific points
+                for i, point in enumerate(points_to_plot, start=1):
+                    ax.scatter(point[0], point[1], color='red', label=f'Point {i} at {i}/5 tf')
+                    ax.annotate(f"P{i}", (point[0], point[1]))
+                
+                points_to_plot = np.array(points_to_plot)
+                velocity_vectors = np.array(velocity_vectors)
+
+                # Plot velocity vectors as arrows
+                plt.quiver(
+                    points_to_plot[:, 0], points_to_plot[:, 1],  # Starting points of arrows
+                    velocity_vectors[:, 0], velocity_vectors[:, 1],  # Components of velocity vectors
+                    angles='xy', scale_units='xy', scale=1, color='red', label='Velocity Vectors'
+                )
+            
             
             smoothed_path_x, smoothed_path_y = smoothed_path[:2]
             
@@ -268,11 +292,6 @@ if __name__ == "__main__":
             path_x, path_y = zip(*path)
             ax.plot(path_x, path_y, color='purple', linewidth=2, label='RRT* Path')
             ax.plot(smoothed_path_x, smoothed_path_y, color='cyan', linestyle='--', linewidth=2, label='Smoothed Path')
-            
-            # Plot specific points
-            for i, point in enumerate(points_to_plot, start=1):
-                ax.scatter(point[0], point[1], color='red', label=f'Point {i} at {i}/5 tf')
-                ax.annotate(f"P{i}", (point[0], point[1]))
             
             # Generate and visualize extinguishing path
             extinguishing_path = generate_extinguishing_path(fire_zone, step_size=0.5, inward_translation=0.5)

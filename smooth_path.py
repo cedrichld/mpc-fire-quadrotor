@@ -78,22 +78,17 @@ def smooth_path_discretized(smooth_path, avg_vel=None, tf=None, max_avg_vel=2.0)
         tuple: Total length, segment lengths, and total time (tf).
     """
     smooth_path = np.array(smooth_path)  # Ensure it is a numpy array
-    
-    # Calculate segment lengths and cumulative path length
-    segment_lengths = np.linalg.norm(np.diff(smooth_path, axis=0), axis=1)
-    total_length = np.sum(segment_lengths)
+    total_length = np.linalg.norm(np.diff(smooth_path, axis=0), axis=1)
     
     # Determine avg_vel if not provided
-    if avg_vel is None:
-        avg_vel = max_avg_vel
+    avg_vel = avg_vel or max_avg_vel
     
     # Calculate tf if not provided
-    if tf is None:
-        tf = total_length / avg_vel
+    tf = tf or (total_length / avg_vel)[0]
     
     return tf
 
-def smooth_path_at_t(smooth_path, t, tf):
+def smooth_path_pos_t(smooth_path, t, tf):
     """
     Generates the total length, segment lengths, and time duration for the smooth path.
     
@@ -107,51 +102,136 @@ def smooth_path_at_t(smooth_path, t, tf):
         tuple: Position on the path at time t (x, y, [z]).
     """
     smooth_path = np.array(smooth_path)  # Ensure it is a numpy array
-    num_points = smooth_path.shape[1] # Total number of points in the path
-    
+    # print(f"smooth path: {smooth_path} and smooth[0] {smooth_path[0]}")
     t = max(0, min(t, tf)) # Ensure t is within [0, tf]
+    num_points = (smooth_path[0]).shape[0] # Total number of points in the path
     index = int(round((t / tf) * (num_points - 1)))
 
     return tuple(smooth_path[:, index])
 
+def smooth_path_vel_t(smooth_path, t, tf):
+    """
+    Computes velocity at time t along the smooth path.
+    
+    Args:
+        smooth_path (tuple or ndarray): Smoothed path as ([x], [y]) or (N x 2) array.
+        t (float): Time at which velocity is required.
+        tf (float): Total time to traverse the path.
+    
+    Returns:
+        tuple: Velocity vector (vx, vy, [vz]) at time t.
+    """
+    smooth_path = np.array(smooth_path)  # Ensure it is a numpy array
+    t = max(0, min(t, tf))  # Clamp t to the range [0, tf]
+    num_points = (smooth_path[0]).shape[0] # Total number of points in the path
+
+    # Compute the current and next indices
+    index = int(round((t / tf) * (num_points - 1)))
+    next_index = min(index + 1, num_points - 1)  # Ensure we don't exceed array bounds
+    
+    # Compute time difference between indices
+    dt = tf / (num_points - 1)  # Time per segment
+    
+    # Compute velocity as the difference between consecutive points
+    velocity = (smooth_path[:, next_index] - smooth_path[:, index]) / dt
+
+    return tuple(velocity)
+
 
 
 '''
-def smooth_path_at_t(total_length, smooth_path, segment_lengths, t, tf):
+
+OLD IMPLEMENTATION:
+
+
+def smooth_path_discretized(smooth_path, avg_vel=None, tf=None, max_avg_vel=2.0):
     """
-    Computes the position on the smooth path at a given time t.
+    Generates the total length, segment lengths, and time duration for the smooth path.
     
     Args:
-        total_length (float): Total length of the path.
         smooth_path (ndarray): Smoothed path coordinates (N x 2 or N x 3).
-        segment_lengths (ndarray): Length of each segment in the path.
-        t (float): Current time in seconds.
-        tf (float): Total time for the trajectory.
+        avg_vel (float, optional): Average velocity to traverse the path. Defaults to max_avg_vel.
+        tf (float, optional): Total time to complete the trajectory. If None, inferred from avg_vel.
+        max_avg_vel (float, optional): Maximum velocity constraint. Default is 2.0 m/s.
+    
+    Returns:
+        tuple: Total length, segment lengths, and total time (tf).
+    """
+    smooth_path = np.array(smooth_path)  # Ensure it is a numpy array
+    segment_lengths = np.linalg.norm(np.diff(smooth_path, axis=0), axis=1)
+    cumulative_lengths = np.insert(np.cumsum(segment_lengths), 0, 0)
+    total_length = np.sum(segment_lengths)
+    
+    # Determine avg_vel if not provided
+    avg_vel = avg_vel or max_avg_vel
+    
+    # Calculate tf if not provided
+    tf = tf or total_length / avg_vel
+    time_stamps = (cumulative_lengths / total_length) * tf
+    
+    # Debugging outputs
+    print(f"Segment lengths: {segment_lengths}")
+    print(f"Cumulative lengths: {cumulative_lengths}")
+    print(f"Total path length: {total_length}")
+    print(f"Total time: {tf}s at average velocity: {avg_vel} m/s")
+    
+    return tf, time_stamps
+
+def smooth_path_pos_t(smooth_path, time_stamps, t, tf):
+    """
+    Generates the total length, segment lengths, and time duration for the smooth path.
+    
+    Args:
+        smooth_path (ndarray): Smoothed path coordinates (N x 2 or N x 3).
+        avg_vel (float, optional): Average velocity to traverse the path. Defaults to max_avg_vel.
+        tf (float, optional): Total time to complete the trajectory. If None, inferred from avg_vel.
+        max_avg_vel (float, optional): Maximum velocity constraint. Default is 2.0 m/s.
     
     Returns:
         tuple: Position on the path at time t (x, y, [z]).
     """
     smooth_path = np.array(smooth_path)  # Ensure it is a numpy array
+    t = max(0, min(t, tf)) # Ensure t is within [0, tf]
     
-    cumulative_lengths = np.insert(np.cumsum(segment_lengths), 0, 0)  # Include start point
+    interpolators = [interp1d(time_stamps, smooth_path[:, dim], kind='linear') 
+                     for dim in range(smooth_path.shape[1])]
+    interpolated_point = np.array([interpolator(t) for interpolator in interpolators])
+
+    return tuple(interpolated_point)
+
+def smooth_path_vel_t(smooth_path, t, tf):
+    """
+    Computes velocity at time t along the smooth path.
     
-    # Map time t to the path's progress
-    progress = min(max(t / tf, 0), 1)  # Normalize t within [0, tf]
-    target_length = progress * total_length  # Map progress to target length
+    Args:
+        smooth_path (ndarray): Smoothed path coordinates (N x 2 or N x 3).
+        t (float): Time at which velocity is required.
+        tf (float): Total time to traverse the path.
     
-    # Find the segment corresponding to target_length
-    segment_index = np.searchsorted(cumulative_lengths, target_length, side='right') - 1
+    Returns:
+        tuple: Velocity vector (vx, vy, [vz]) at time t.
+    """
+    smooth_path = np.array(smooth_path)
+    t = max(0, min(t, tf))  # Ensure t is within [0, tf]
     
-    # Calculate the exact position on the segment
-    if segment_index < smooth_path.shape[0] - 1:
-        seg_start = smooth_path[segment_index]
-        seg_end = smooth_path[segment_index + 1]
-        seg_length = segment_lengths[segment_index]
-        seg_progress = (target_length - cumulative_lengths[segment_index]) / seg_length
-        position = seg_start + seg_progress * (seg_end - seg_start)
-    else:
-        # If t >= tf, return the final point
-        position = smooth_path[-1]
+    # Generate time stamps for each point
+    segment_lengths = np.linalg.norm(np.diff(smooth_path, axis=0), axis=1)
+    cumulative_lengths = np.insert(np.cumsum(segment_lengths), 0, 0)
+    total_length = cumulative_lengths[-1]
     
-    return tuple(position)
+    # Time for each point (assuming constant velocity)
+    time_stamps = (cumulative_lengths / total_length) * tf
+    
+    # Interpolation for position derivatives
+    interpolators = [interp1d(time_stamps, smooth_path[:, dim], kind='linear', fill_value="extrapolate") 
+                     for dim in range(smooth_path.shape[1])]
+    
+    # Compute finite differences for velocities
+    dt = 1e-3  # Small time step for numerical differentiation
+    position_t = np.array([interpolator(t) for interpolator in interpolators])
+    position_t_plus_dt = np.array([interpolator(t + dt) for interpolator in interpolators])
+    velocity = (position_t_plus_dt - position_t) / dt
+    
+    return tuple(velocity)
+
 '''
