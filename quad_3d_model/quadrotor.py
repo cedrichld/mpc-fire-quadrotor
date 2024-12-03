@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from numpy.linalg import inv
 from numpy.linalg import cholesky
-from math import sin, cos
+from math import sin, cos, sqrt
 import math
 from scipy.interpolate import interp1d
 from scipy.integrate import ode
@@ -30,9 +30,9 @@ class Quadrotor(object):
     self.m = 0.468  # Mass of the quadrotor (kg)
     self.g = 9.81   # Gravitational acceleration (m/s^2)
     self.I = np.diag([4.856e-3, 4.856e-3, 8.801e-3])  # Inertia tensor (kg*m^2)
-    self.L = 0.225  # Arm length (m)
-    self.K = 2.980e-6  # Thrust coefficient (N/(rad/s)^2)
-    self.b = 1.14e-7   # Drag coefficient (N*m/(rad/s)^2)
+    self.L = 0.225      # Arm length (m)
+    self.K = 2.980e-6   # Thrust coefficient (N/(rad/s)^2)
+    self.b = 1.14e-7    # Drag coefficient (N*m/(rad/s)^2)
     self.Ax = 0.25 * 0  # Aerodynamic drag in x (NOT USED YET)
     self.Ay = 0.25 * 0  # Aerodynamic drag in y (NOT USED YET)
     self.Az = 0.25 * 0  # Aerodynamic drag in z (NOT USED YET)
@@ -42,13 +42,13 @@ class Quadrotor(object):
     self.R = R       # Input cost matrix
     self.Qf = Qf     # Terminal cost matrix
 
-    # Input limits
-    self.umin = 0.0
-    self.umax = 5.5
-
     # State and control dimensions
     self.n_zeta = 12  # State dimension (x, y, z, phi, theta, psi + their velocities)
     self.n_u = 4      # Input dimension (4 rotors)
+    
+    # Input limits
+    self.umin = 0.0
+    self.umax = 0.5 * 1.075 * sqrt(1 / self.K)
 
   def zeta_d(self):
     # Nominal state
@@ -56,13 +56,9 @@ class Quadrotor(object):
 
   def u_d(self):
     # Nominal input (hover condition)
-    return np.array([self.m * self.g / 2] * self.n_u)
+    return (1.075 * sqrt(1 / self.K)) * np.ones(self.n_u) # self.m * self.g / (self.n_u)
 
   def continuous_time_full_dynamics(self, zeta, u):
-    """
-    Computes the corrected full continuous-time dynamics of the quadrotor in 3D
-    based on the provided MATLAB implementation.
-    """
     # Unpack parameters
     m, g, L = self.m, self.g, self.L  # Mass, gravity, arm length
     I_x, I_y, I_z = self.I[0, 0], self.I[1, 1], self.I[2, 2]  # Inertia tensor components
@@ -166,6 +162,60 @@ class Quadrotor(object):
     Computes the linearized dynamics at the hover point using numerical values.
     """
     # Unpack parameters
+    m, I, g, L, K, b = self.m, self.I, self.g, self.L, self.K, self.b
+    I_x, I_y, I_z = I[0, 0], I[1, 1], I[2, 2]
+
+    # Initialize A and B matrices
+    A = np.zeros((12, 12))
+    B = np.zeros((12, 4))
+
+    # Fill A matrix
+    # Velocity-to-position coupling
+    A[0, 6] = 1
+    A[1, 7] = 1
+    A[2, 8] = 1
+    A[3, 9] = 1
+    A[4, 10] = 1
+    A[5, 11] = 1
+
+    # Gravity coupling
+    A[6, 4] = g  # g * theta for x dynamics
+    A[7, 3] = -g  # -g * phi for y dynamics
+
+    # Rotational inertia coupling
+    A[9, 11] = (I_y - I_z) / I_x
+    A[10, 9] = (I_z - I_x) / I_y
+
+    # Fill B matrix
+    # Translational dynamics (thrust inputs)
+    B[8, :] = [K * sqrt(g * m / K) / m,
+               K * sqrt(g * m / K) / m,
+               K * sqrt(g * m / K) / m,
+               K * sqrt(g * m / K) / m]
+
+    # Rotational dynamics (torques from inputs)
+    B[9, :] =  [0,
+                - K * L * sqrt(g * m / K) / I_x, 
+                0, 
+                K * L * sqrt(g * m / K) / I_x]
+    B[10, :] = [- K * L * sqrt(g * m / K) / I_y, 
+                0, 
+                K * L * sqrt(g * m / K) / I_y, 
+                0]
+    B[11, :] = [b * sqrt(g * m / K) / I_z,
+                - b * sqrt(g * m / K) / I_z, 
+                b * sqrt(g * m / K) / I_z,
+                - b * sqrt(g * m / K) / I_z]
+
+    return A, B
+
+
+  '''  
+  def continuous_time_linearized_dynamics(self):
+    """
+    Computes the linearized dynamics at the hover point using numerical values.
+    """
+    # Unpack parameters
     m, I, g, L = self.m, self.I, self.g, self.L
     I_x, I_y, I_z = I[0, 0], I[1, 1], I[2, 2]
 
@@ -208,7 +258,7 @@ class Quadrotor(object):
                 1 / I_z,
                 -1 / I_z]
 
-    return A, B
+    return A, B '''
   
   def discrete_time_linearized_dynamics(self, T):
     # Discrete time version of the linearized dynamics at the fixed point

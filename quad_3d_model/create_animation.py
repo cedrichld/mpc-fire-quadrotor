@@ -4,7 +4,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 from quadrotor import Quadrotor
 
-def animate_quadrotor(x, t, Q, R, Qf, arm_length=0.5):
+def animate_quadrotor(x, t, Q, R, Qf):
     """
     Animates the quadrotor's 3D trajectory and its body frame.
 
@@ -19,9 +19,9 @@ def animate_quadrotor(x, t, Q, R, Qf, arm_length=0.5):
     quadrotor = Quadrotor(Q, R, Qf)
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    ax.set_xlim3d([-2, 2])
-    ax.set_ylim3d([-2, 2])
-    ax.set_zlim3d([0, 4])
+    ax.set_xlim3d([-1, 1])
+    ax.set_ylim3d([-1, 1])
+    ax.set_zlim3d([-1, 1])
     ax.set_xlabel('X (m)')
     ax.set_ylabel('Y (m)')
     ax.set_zlabel('Z (m)')

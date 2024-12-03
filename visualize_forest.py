@@ -3,7 +3,9 @@ import time
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+from matplotlib.collections import PatchCollection
+from matplotlib.patches import Polygon
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 from forrest_generation import generate_random_forest_with_grid
 from firezone import *
@@ -52,7 +54,9 @@ def visualize_forest(space_dim, obstacles, fire_zone, start_pos, goal_pos, fire_
     # Plot fire zone as filled red area
     fire_x, fire_y = fire_zone
     fire_z = np.zeros_like(fire_x)
-    ax.plot(fire_x, fire_y, fire_z, color='red', linewidth=2, label='Fire Zone')
+    vertices = [list(zip(fire_x, fire_y, fire_z))]
+    fire_zone_polygon = Poly3DCollection(vertices, color='red', alpha=0.3, edgecolor='red')
+    ax.add_collection3d(fire_zone_polygon)
 
     # Plot start and goal positions
     ax.scatter(*start_pos, color='blue', s=100, label='Start')
@@ -78,23 +82,43 @@ def visualize_forest_2d(space_dim, obstacles, fire_zone, start_pos, goal_pos, fi
     ax.set_ylim(0, space_dim[1])
 
     # Plot trees outside fire zone in green
-    for obstacle in obstacles:
-        circle = plt.Circle(
-            obstacle.center[:2], obstacle.radius, color='green', alpha=0.5
-        )
-        ax.add_patch(circle)
+    # for obstacle in obstacles:
+    #     circle = plt.Circle(
+    #         obstacle.center[:2], obstacle.radius, color='green', alpha=0.5
+    #     )
+    #     ax.add_patch(circle)
+    
+    # Create patches for obstacles outside fire zone (Optimized?)
+    obstacle_patches = [
+        plt.Circle(obstacle.center[:2], obstacle.radius) for obstacle in obstacles
+    ]
+    obstacle_collection = PatchCollection(obstacle_patches, color='green', alpha=0.4)
+    ax.add_collection(obstacle_collection)
+    
 
     # Plot trees inside fire zone in orange
+    # if fire_zone_trees:
+    #     for obstacle in fire_zone_trees:
+    #         circle = plt.Circle(
+    #             obstacle.center[:2], obstacle.radius, color='orange', alpha=0.7
+    #         )
+    #         ax.add_patch(circle)
+
+
+    # Create patches for obstacles inside fire zone (Optimized?)
     if fire_zone_trees:
-        for obstacle in fire_zone_trees:
-            circle = plt.Circle(
-                obstacle.center[:2], obstacle.radius, color='orange', alpha=0.7
-            )
-            ax.add_patch(circle)
+        fire_patches = [
+            plt.Circle(obstacle.center[:2], obstacle.radius) for obstacle in fire_zone_trees
+        ]
+        fire_collection = PatchCollection(fire_patches, color='orange', alpha=0.5)
+        ax.add_collection(fire_collection)
 
     # Plot fire zone boundary
     fire_x, fire_y = fire_zone
-    ax.plot(fire_x, fire_y, color='red', linewidth=2, label='Fire Zone')
+    # ax.plot(fire_x, fire_y, color='red', linewidth=2, label='Fire Zone')
+    vertices = list(zip(fire_x, fire_y))
+    fire_zone_polygon = Polygon(vertices, closed=True, facecolor='red', alpha=0.05, edgecolor='darkred')
+    ax.add_patch(fire_zone_polygon)
 
     # Plot start and goal positions
     ax.scatter(start_pos[0], start_pos[1], color='blue', s=100, label='Start')
@@ -139,11 +163,14 @@ if __name__ == "__main__":
     elif args.mode == "2d":
         fig, ax = visualize_forest_2d(space_dim[:2], trees_outside, fire_zone, start_pos, goal_pos, trees_inside)
 
+
+        '''
+        ### Check if points are in the fire zone and Plot
+
         # Test points from (0, 0) to (50, 50)
         test_points_x, test_points_y = np.meshgrid(np.linspace(0, 50, 200), np.linspace(0, 50, 200))
         test_points = np.column_stack((test_points_x.ravel(), test_points_y.ravel()))
-
-        # Check if points are in the fire zone
+        
         inside_points = []
         outside_points = []
         for point in test_points:
@@ -161,7 +188,8 @@ if __name__ == "__main__":
             ax.scatter(inside_points[:, 0], inside_points[:, 1], color='red', s=0.02, label="Inside Fire Zone")
         if outside_points.size > 0:
             ax.scatter(outside_points[:, 0], outside_points[:, 1], color='blue', s=0.02, label="Outside Fire Zone")
-
+        '''
+        
         plt.legend()
         plt.gca().set_aspect('equal', adjustable='box')
         plt.show()

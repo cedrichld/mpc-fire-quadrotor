@@ -20,9 +20,9 @@ params = {
 }
 
 # Motor speeds
-omega = 1.075
+omega = 0.5
 speed = omega * np.sqrt(1 / params["K"])
-dspeed = 0.05 * speed
+dspeed = 0.2 * speed
 params["omega1"] = speed-0.5*dspeed
 params["omega2"] = speed+0.5*dspeed
 params["omega3"] = speed-0.5*dspeed
@@ -35,7 +35,7 @@ phi0, theta0, psi0 = 0, 0, 0
 phidot0, thetadot0, psidot0 = 0, 0, 0
 
 Z0 = [x0, y0, z0, phi0, theta0, psi0, vx0, vy0, vz0, phidot0, thetadot0, psidot0]
-t_span = (0, 1)
+t_span = (0, 5)
 t_eval = np.linspace(*t_span, 500)
 
 # Equations of motion
@@ -113,12 +113,15 @@ def get_rotation(phi, theta, psi):
     R_x = np.array([[1, 0, 0],
                     [0, np.cos(phi), -np.sin(phi)],
                     [0, np.sin(phi), np.cos(phi)]])
+    
     R_y = np.array([[np.cos(theta), 0, np.sin(theta)],
                     [0, 1, 0],
                     [-np.sin(theta), 0, np.cos(theta)]])
+    
     R_z = np.array([[np.cos(psi), -np.sin(psi), 0],
                     [np.sin(psi), np.cos(psi), 0],
                     [0, 0, 1]])
+    
     return R_z @ R_y @ R_x
 
 positions = sol.y[:3].T

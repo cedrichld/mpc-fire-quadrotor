@@ -38,11 +38,11 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="/mnt/c/Users/Cedric/Desktop/Cedric School " Work/UPenn/Year 4/MEAM 5170/Final_project/fire_quadrotor/quad_3d_model/env"
+VIRTUAL_ENV='/mnt/c/Users/Cedric/Desktop/Cedric School " Work/UPenn/Year 4/MEAM 5170/Final_project/fire_quadrotor/quad_3d_model/env'
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"
-PATH="$VIRTUAL_ENV/bin:$PATH"
+PATH="$VIRTUAL_ENV/"bin":$PATH"
 export PATH
 
 # unset PYTHONHOME if set
@@ -55,9 +55,9 @@ fi
 
 if [ -z "${VIRTUAL_ENV_DISABLE_PROMPT:-}" ] ; then
     _OLD_VIRTUAL_PS1="${PS1:-}"
-    PS1="(env) ${PS1:-}"
+    PS1='(env) '"${PS1:-}"
     export PS1
-    VIRTUAL_ENV_PROMPT="(env) "
+    VIRTUAL_ENV_PROMPT='(env) '
     export VIRTUAL_ENV_PROMPT
 fi
 

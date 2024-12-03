@@ -100,10 +100,10 @@ if __name__ == '__main__':
   quadrotor = Quadrotor(Q, R, Qf)
 
   # Initial state (position, orientation, velocities)
-  zeta0 = np.array([0, 0, 0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0])  # Hovering at 0.5m
+  zeta0 = np.array([1.0, 0, 0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0])  # Hovering at 0.5m
 
   # Simulation duration
-  tf = 5
+  tf = 10
 
   # Simulate the quadrotor
   zeta, u, t = simulate_quadrotor_3d(zeta0, tf, quadrotor)
