@@ -27,15 +27,13 @@ from pydrake.all import MonomialBasis, OddDegreeMonomialBasis, Variables
 class Quadrotor(object):
   def __init__(self, Q, R, Qf):
     # Parameters
-    self.m = 0.468  # Mass of the quadrotor (kg)
-    self.g = 9.81   # Gravitational acceleration (m/s^2)
-    self.I = np.diag([4.856e-3, 4.856e-3, 8.801e-3])  # Inertia tensor (kg*m^2)
-    self.L = 0.225      # Arm length (m)
-    self.K = 2.980e-6   # Thrust coefficient (N/(rad/s)^2)
-    self.b = 1.14e-7    # Drag coefficient (N*m/(rad/s)^2)
-    self.Ax = 0.25 * 0  # Aerodynamic drag in x (NOT USED YET)
-    self.Ay = 0.25 * 0  # Aerodynamic drag in y (NOT USED YET)
-    self.Az = 0.25 * 0  # Aerodynamic drag in z (NOT USED YET)
+    self.m = 0.698  # quadrotor mass (kg)
+    self.g = 9.81   # g (m/s^2)
+    self.I = np.diag([3.4e-3, 3.4e-3, 6.0e-3])  # inertia tensor (kg*m^2)
+    self.L = 0.171 # arm length (m)
+    self.Jtp = 1.302e-6 # Rotational moment of inertia (N*m*s^2 = kg*m^2)
+    self.ct = (7.6184e-8) * (60 / (2 * np.pi))**2; # Thrust Coef: N*s^2
+    self.cq = (2.6839e-9) * (60 / (2 * np.pi))**2; # Torque/Drag Coef: N*m^2
     
     # Control-related parameters
     self.Q = Q       # State cost matrix
@@ -47,123 +45,157 @@ class Quadrotor(object):
     self.n_u = 4      # Input dimension (4 rotors)
     
     # Input limits
-    self.umin = 0.0
-    self.umax = 0.5 * 1.075 * sqrt(1 / self.K)
+    # self.omega_min = self.omega_ref * 0.5 # no motor input
+    # self.omega_max = self.omega_ref * 2 # max rotation speed of 3 times required speed
+    self.U1_min, self.U1_max = (self.m * self.g * 0.65), (self.m * self.g * 2)
+    self.U2_min, self.U2_max = - math.inf, math.inf
+    self.U3_min, self.U3_max = - math.inf, math.inf
+    self.U4_min, self.U4_max = - math.inf, math.inf
+    
+    self.U_min = np.array([self.U1_min, self.U2_min, self.U3_min, self.U4_min])
+    self.U_max = np.array([self.U1_max, self.U2_max, self.U3_max, self.U4_max])
+    
+    # M matrix from U to omega^2
+    self.M = np.array([
+        [self.ct,    self.ct,    self.ct,    self.ct   ],
+        [0,          self.ct*self.L, 0,      -self.ct*self.L],
+        [-self.ct*self.L, 0,    self.ct*self.L, 0       ],
+        [-self.cq,   self.cq,   -self.cq,   self.cq    ]
+    ])
+    
+    self.M_inv = np.linalg.inv(self.M)
+    
+    # X^T = [x, y, z, phi, theta, psi, x_dot, y_dot, z_dot, phi_dot, theta_dot, psi_dot]
+    # U^T = [F_z, tau_phi, tau_theta, tau_psi] or [U1, U2, U3, U4]
 
+  def omega_d(self):
+    return 0.5 * np.sqrt((self.m * self.g) / (self.n_u * self.ct)) # * 0.5?
+    
+    
   def zeta_d(self):
     # Nominal state
-    return np.zeros(12)  # Hovering at the origin
+    zeta = np.zeros(12)
+    zeta[0] = 0
+    zeta[2] = -0.5
+    # zeta = np.array([0.09, 0., 12.14, -0., 0., 0., -0.02, -0., 0.07, 0., -0., -0.])
+    return zeta # Hovering at the origin
 
-  def u_d(self):
+  def U_d(self):
     # Nominal input (hover condition)
-    return (1.075 * sqrt(1 / self.K)) * np.ones(self.n_u) # self.m * self.g / (self.n_u)
-
-  def continuous_time_full_dynamics(self, zeta, u):
-    # Unpack parameters
-    m, g, L = self.m, self.g, self.L  # Mass, gravity, arm length
-    I_x, I_y, I_z = self.I[0, 0], self.I[1, 1], self.I[2, 2]  # Inertia tensor components
-    K, b = self.K, self.b  # Thrust and drag coefficients
-    Ax, Ay, Az = self.Ax, self.Ay, self.Az
-
-    # Extract state variables
-    X, Y, Z, phi, theta, psi, X_dot, Y_dot, Z_dot, phi_dot, theta_dot, psi_dot = zeta
-    
-    R = self.rotation_matrix(phi, theta, psi) # Rotation matrix from body to world
-
-    # Extract rotor speeds
-    omega1, omega2, omega3, omega4 = u
-
-    # Compute thrust and torques
-    T = K * (omega1**2 + omega2**2 + omega3**2 + omega4**2)  # Total thrust
-    tau_phi = K * L * (omega4**2 - omega2**2)  # Roll torque
-    tau_theta = K * L * (omega3**2 - omega1**2)  # Pitch torque
-    tau_psi = b * (omega1**2 - omega2**2 + omega3**2 - omega4**2)  # Yaw torque
-
-    # Translational accelerations
-    acc_body = np.array([0, 0, T / m])  # Acceleration in body frame
-    acc_world = R @ acc_body - np.array([0, 0, g])  # Transform to world frame and add gravity
-    X_ddot, Y_ddot, Z_ddot = acc_world
-
-    # Rotational accelerations
-    omega_dot = np.linalg.inv(np.diag([I_x, I_y, I_z])) @ np.array([
-        tau_phi + (I_y - I_z) * theta_dot * psi_dot,
-        tau_theta + (I_z - I_x) * phi_dot * psi_dot,
-        tau_psi + (I_x - I_y) * phi_dot * theta_dot
-    ])
-    phi_ddot, theta_ddot, psi_ddot = omega_dot
-
-    # Pack derivatives into state derivative vector
-    zeta_dot = np.zeros(12)
-    zeta_dot[0] = X_dot
-    zeta_dot[1] = Y_dot
-    zeta_dot[2] = Z_dot
-    
-    zeta_dot[3] = phi_dot
-    zeta_dot[4] = theta_dot
-    zeta_dot[5] = psi_dot
-    
-    zeta_dot[6] = X_ddot
-    zeta_dot[7] = Y_ddot
-    zeta_dot[8] = Z_ddot
-    
-    zeta_dot[9] = phi_ddot 
-    zeta_dot[10] = theta_ddot
-    zeta_dot[11] = psi_ddot
-
-    return zeta_dot
+    # print(f"u_d is {self.omega_ref * np.ones(self.n_u)}")
+    return np.array([self.m * self.g, 0, 0, 0])
   
-  '''
+  def U_to_omega(self, U):
+    """
+    Given U, solve for omega^2
+    """
     
-  def continuous_time_full_dynamics(self, zeta, u):
-    # Extract parameters
-    m, I_x, I_y, I_z = self.m, self.I[0, 0], self.I[1, 1], self.I[2, 2]
-    g = self.g
-
-    # Construct A matrix
-    A = np.array([
-        [m, 0, 0, 0, 0, 0],
-        [0, m, 0, 0, 0, 0],
-        [0, 0, m, 0, 0, 0],
-        [0, 0, 0, I_x, 0, 0],
-        [0, 0, 0, 0, I_y, 0],
-        [0, 0, 0, 0, 0, I_z]
-    ])
-
-    # Construct B vector based on forces and torques
-    T = self.K * np.sum(u**2)
-    tau_phi = self.K * self.L * (u[3]**2 - u[1]**2)
-    tau_theta = self.K * self.L * (u[2]**2 - u[0]**2)
-    tau_psi = self.b * (u[0]**2 - u[1]**2 + u[2]**2 - u[3]**2)
-    B = np.array([
-        0,
-        0,
-        T - m * g,
-        tau_phi,
-        tau_theta,
-        tau_psi
-    ])
-
-    # Solve for accelerations
-    accelerations = self.solve_quadrotor_dynamics(A, B)
-
-    return accelerations '''
+    omega_sqr = self.M_inv @ U
+    
+    # Not physically feasible
+    if np.any(omega_sqr < 0):
+      omega_sqr = np.clip(omega_sqr, 0, None)
+    omega = np.sqrt(omega_sqr)
+    
+    return omega
   
-  def solve_quadrotor_dynamics(self, A, B):
-    try:
-        # Solve the linear system A * X = B
-        X = np.linalg.solve(A, B)
-    except np.linalg.LinAlgError as e:
-        raise ValueError(f"Failed to solve the system. Matrix A might be singular or ill-conditioned: {e}")
+  def U_calculator(self, omega):
+    U1 = self.ct * (omega[0]**2 + omega[1]**2 + omega[2]**2 + omega[3]**2)
+    U2 = self.ct * self.L * (omega[1]**2 - omega[3]**2)
+    U3 = self.ct * self.L * (omega[2]**2 - omega[0]**2)
+    U4 = self.cq * (-omega[0]**2 + omega[1]**2 - omega[2]**2 + omega[3]**2)
+    omega_total = omega[0] - omega[1] + omega[2] - omega[3]
     
-    return X
+    # print(f"U1, U2, U3, U4, omega_total are {U1, U2, U3, U4, omega_total}")
+    
+    return U1, U2, U3, U4, omega_total
+
+  def continuous_time_full_dynamics(self, zeta, omega):
+    '''
+    Input: Takes in the current zeta and omega
+    Output: Returns the current dzeta
+    '''
+    # Constants
+    m, g, Jtp = self.m, self.g, self.Jtp  # Mass, gravity, torque precession constant
+    Ix, Iy, Iz = self.I[0, 0], self.I[1, 1], self.I[2, 2]  # Moments of inertia
+
+    # State: [x, y, z, phi, theta, psi, u, v, w, p, q, r]
+    # x, y, z = zeta[0:3]
+    phi, theta, psi = zeta[3:6] # Euler angles
+    u, v, w = zeta[6:9]  # Linear velocities
+    p, q, r = zeta[9:12] # Angular velocities
+    
+    # Input forces and torques
+    U1, U2, U3, U4, omega_total = self.U_calculator(omega)
+    # print(f"U1, U2, U3, U4, omega_total: {U1, U2, U3, U4, omega_total}")
+
+    # Rotation matrix relating body frame velocities to inertial frame velocities
+    R_matrix = np.array([
+        [np.cos(theta) * np.cos(psi), 
+         np.sin(phi) * np.sin(theta) * np.cos(psi) - np.cos(phi) * np.sin(psi),
+         np.cos(phi) * np.sin(theta) * np.cos(psi) + np.sin(phi) * np.sin(psi)],
+        [np.cos(theta) * np.sin(psi), 
+         np.sin(phi) * np.sin(theta) * np.sin(psi) + np.cos(phi) * np.cos(psi),
+         np.cos(phi) * np.sin(theta) * np.sin(psi) - np.sin(phi) * np.cos(psi)],
+        [-np.sin(theta), 
+         np.sin(phi) * np.cos(theta), 
+         np.cos(phi) * np.cos(theta)]
+    ])
+
+    # Transformation matrix relating angular velocities to Euler angle derivatives
+    T_matrix = np.array([
+        [1, np.sin(phi) * np.tan(theta), np.cos(phi) * np.tan(theta)],
+        [0, np.cos(phi), -np.sin(phi)],
+        [0, np.sin(phi) / np.cos(theta), np.cos(phi) / np.cos(theta)] # May lead to divides by zero
+    ])
+    
+    if np.cos(theta) == 0:
+      print("np.cos(theta) is 0!!")
+
+    # Compute nonlinear dynamics
+    dzeta = np.zeros(12)
+    
+    # Position derivatives
+    dzeta[0:3] = R_matrix @ np.array([u, v, w])  # [x_dot, y_dot, z_dot]
+    
+    # Euler angle derivatives
+    euler_dots = T_matrix @ np.array([p, q, r])
+    dzeta[3] = euler_dots[0]  # phi_dot
+    dzeta[4] = euler_dots[1]  # theta_dot
+    dzeta[5] = euler_dots[2]  # psi_dot
+
+    # Translational dynamics
+    dzeta[6] = (v * r - w * q) + g * np.sin(theta)  # u_dot
+    dzeta[7] = (w * p - u * r) - g * np.cos(theta) * np.sin(phi)  # v_dot
+    dzeta[8] = (u * q - v * p) - g * np.cos(theta) * np.cos(phi) + U1 / m  # w_dot
+
+    # Rotational dynamics
+    dzeta[9] = (q * r * (Iy - Iz) - Jtp * q * omega_total + U2) / Ix  # p_dot
+    dzeta[10] = (p * r * (Iz - Ix) + Jtp * p * omega_total + U3) / Iy  # q_dot
+    dzeta[11] = (p * q * (Ix - Iy) + U4) / Iz  # r_dot
+
+    return dzeta
 
   def continuous_time_linearized_dynamics(self):
     """
-    Computes the linearized dynamics at the hover point using numerical values.
+    Computes the linearized dynamics at the hover point using the hover angular velocity (omega_total)
+    and the system parameters.
+    
+    Parameters:
+    - omega_total: Total rotor angular velocity at hover.
+
+    Returns:
+    - A: Linearized state matrix (12x12).
+    - B: Linearized control matrix (12x4).
     """
     # Unpack parameters
-    m, I, g, L, K, b = self.m, self.I, self.g, self.L, self.K, self.b
-    I_x, I_y, I_z = I[0, 0], I[1, 1], I[2, 2]
+    g = self.g  # Gravity
+    m = self.m  # Mass
+    Jtp = self.Jtp  # Torque precession constant
+    I_x, I_y, I_z = self.I[0, 0], self.I[1, 1], self.I[2, 2]  # Inertia tensor elements
+    # _, _, _, _, omega_total = self.U_calculator(omega_current)
+    # print(f"omega: {omega}, omega_total: {omega_total}")
+
 
     # Initialize A and B matrices
     A = np.zeros((12, 12))
@@ -171,95 +203,34 @@ class Quadrotor(object):
 
     # Fill A matrix
     # Velocity-to-position coupling
-    A[0, 6] = 1
-    A[1, 7] = 1
-    A[2, 8] = 1
-    A[3, 9] = 1
-    A[4, 10] = 1
-    A[5, 11] = 1
+    A[0, 6] = 1  # x_dot coupling with u (x velocity)
+    A[1, 7] = 1  # y_dot coupling with v (y velocity)
+    A[2, 8] = 1  # z_dot coupling with w (z velocity)
+    A[3, 9] = 1  # phi_dot coupling with p (roll rate)
+    A[4, 10] = 1  # theta_dot coupling with q (pitch rate)
+    A[5, 11] = 1  # psi_dot coupling with r (yaw rate)
 
     # Gravity coupling
     A[6, 4] = g  # g * theta for x dynamics
     A[7, 3] = -g  # -g * phi for y dynamics
+    
+    # A[4, 9] = Jtp * omega_total / I_y
+    # A[3, 10] = - Jtp * omega_total / I_x
 
-    # Rotational inertia coupling
-    A[9, 11] = (I_y - I_z) / I_x
-    A[10, 9] = (I_z - I_x) / I_y
+    # Rotational dynamics coupling
+    # A[9, 3] = (I_y - I_z) / I_x - Jtp * omega_total / I_x  # Roll dynamics (phi)
+    # A[10, 4] = (I_z - I_x) / I_y + Jtp * omega_total / I_y  # Pitch dynamics (theta)
+    # A[11, 10] = (I_x - I_y) / I_z  # Yaw dynamics (psi)
 
     # Fill B matrix
     # Translational dynamics (thrust inputs)
-    B[8, :] = [K * sqrt(g * m / K) / m,
-               K * sqrt(g * m / K) / m,
-               K * sqrt(g * m / K) / m,
-               K * sqrt(g * m / K) / m]
-
-    # Rotational dynamics (torques from inputs)
-    B[9, :] =  [0,
-                - K * L * sqrt(g * m / K) / I_x, 
-                0, 
-                K * L * sqrt(g * m / K) / I_x]
-    B[10, :] = [- K * L * sqrt(g * m / K) / I_y, 
-                0, 
-                K * L * sqrt(g * m / K) / I_y, 
-                0]
-    B[11, :] = [b * sqrt(g * m / K) / I_z,
-                - b * sqrt(g * m / K) / I_z, 
-                b * sqrt(g * m / K) / I_z,
-                - b * sqrt(g * m / K) / I_z]
+    B[8, 0] = 1 / m
+    B[9, 1] = 1 / I_x
+    B[10, 2] = 1 / I_y
+    B[11, 3] = 1 / I_z
 
     return A, B
 
-
-  '''  
-  def continuous_time_linearized_dynamics(self):
-    """
-    Computes the linearized dynamics at the hover point using numerical values.
-    """
-    # Unpack parameters
-    m, I, g, L = self.m, self.I, self.g, self.L
-    I_x, I_y, I_z = I[0, 0], I[1, 1], I[2, 2]
-
-    # Initialize A and B matrices
-    A = np.zeros((12, 12))
-    B = np.zeros((12, 4))
-
-    # Fill A matrix
-    # Velocity-to-position coupling
-    A[0, 6] = 1
-    A[1, 7] = 1
-    A[2, 8] = 1
-    A[3, 9] = 1
-    A[4, 10] = 1
-    A[5, 11] = 1
-
-    # Gravity coupling
-    A[6, 4] = g  # g * theta for x dynamics
-    A[7, 3] = -g  # -g * phi for y dynamics
-
-    # Rotational inertia coupling
-    A[9, 11] = (I_y - I_z) / I_x
-    A[10, 9] = (I_z - I_x) / I_y
-
-    # Fill B matrix
-    # Translational dynamics (thrust inputs)
-    B[8, :] = [1 / m, 1 / m, 1 / m, 1 / m]
-
-    # Rotational dynamics (torques from inputs)
-    B[9, :] =  [-1 / I_x,
-                (L / I_x) - (1 / I_x), 
-                -1 / I_x, 
-                -(L / I_x) - (1 / I_x)]
-    B[10, :] = [-(L / I_y) + (1 / I_y), 
-                1 / I_y, 
-                (L / I_y) + (1 / I_y), 
-                1 / I_y]
-    B[11, :] = [1 / I_z,
-                -1 / I_z, 
-                1 / I_z,
-                -1 / I_z]
-
-    return A, B '''
-  
   def discrete_time_linearized_dynamics(self, T):
     # Discrete time version of the linearized dynamics at the fixed point
     # This function returns A and B matrix of the discrete time dynamics
@@ -269,17 +240,23 @@ class Quadrotor(object):
 
     return A_d, B_d
 
+
+
+#############################
+# Controls and Optimization #
+#############################
+
   def add_initial_state_constraint(self, prog, zeta, zeta_current):
     # Impose initial state constraint.
     prog.AddBoundingBoxConstraint(zeta_current, zeta_current, zeta[0])
     
 
-  def add_input_saturation_constraint(self, prog, u, N):
+  def add_input_saturation_constraint(self, prog, U, N):
     # Impose input limit constraint.
     for i in range(N - 1):
-        prog.AddBoundingBoxConstraint(self.umin - self.u_d(), self.umax - self.u_d(), u[i])
+        prog.AddBoundingBoxConstraint(self.U_min, self.U_max, U[i])
 
-  def add_dynamics_constraint(self, prog, zeta, u, N, T):
+  def add_dynamics_constraint(self, prog, zeta, U, N, T):
     """
     Adds dynamics constraints to the MPC optimization problem.
 
@@ -288,7 +265,7 @@ class Quadrotor(object):
         The optimization problem.
     zeta: ndarray
         State trajectory decision variables.
-    u: ndarray
+    omega: ndarray
         Input trajectory decision variables.
     N: int
         Prediction horizon.
@@ -298,26 +275,28 @@ class Quadrotor(object):
     # Get linearized discrete-time dynamics
     A_d, B_d = self.discrete_time_linearized_dynamics(T)
 
+
     # Add constraints for each time step
     for i in range(N - 1):
       dynamics_constraint = (
-        zeta[i + 1] - A_d @ zeta[i] - B_d @ u[i]
+        zeta[i + 1] - A_d @ zeta[i] - B_d @ U[i]
       )
       prog.AddLinearEqualityConstraint(
         dynamics_constraint, np.zeros_like(zeta[0])
       )
 
-  def add_cost(self, prog, zeta, u, N):
+  def add_cost(self, prog, zeta, U, N):
     cost = 0
-    for i in range(N - 1):
-      cost += (zeta[i] - self.zeta_d()).T @ self.Q @ (zeta[i] - self.zeta_d()) + u[i].T @ self.R @ u[i]
     
+    for i in range(N - 1):
+      cost += (zeta[i] - self.zeta_d()).T @ self.Q @ (zeta[i] - self.zeta_d())
+      cost += (U[i] - self.U_d()).T @ self.R @ (U[i] - self.U_d())
     # cost += zeta[N - 1].T @ self.Qf @ zeta[N - 1]
     prog.AddQuadraticCost(cost)
 
   def compute_mpc_feedback(self, zeta_current, use_clf=False):
     '''
-    This function computes the MPC controller input u
+    This function computes the MPC controller input omega
     '''
 
     # Parameters for the QP
@@ -330,28 +309,38 @@ class Quadrotor(object):
     zeta = np.zeros((N, self.n_zeta), dtype="object")
     for i in range(N):
       zeta[i] = prog.NewContinuousVariables(self.n_zeta, "z_" + str(i))
-    u = np.zeros((N-1, self.n_u), dtype="object")
+    # Based on thrust
+    U = np.zeros((N-1, self.n_u), dtype="object")
     for i in range(N-1):
-      u[i] = prog.NewContinuousVariables(self.n_u, "u_" + str(i))
+      U[i] = prog.NewContinuousVariables(self.n_u, "U_" + str(i))
 
     # Add constraints and cost
     self.add_initial_state_constraint(prog, zeta, zeta_current)
-    self.add_input_saturation_constraint(prog, u, N)
-    self.add_dynamics_constraint(prog, zeta, u, N, T)
-    self.add_cost(prog, zeta, u, N)
+    self.add_input_saturation_constraint(prog, U, N)
+    self.add_dynamics_constraint(prog, zeta, U, N, T)
+    self.add_cost(prog, zeta, U, N)
 
     # Solve the QP
     solver = OsqpSolver()
     result = solver.Solve(prog)
 
     if result.is_success():
-        u_mpc = result.GetSolution(u[0]) + self.u_d()
-        # print(f"Control input at this step: {u_mpc}") 
+        U_mpc = result.GetSolution(U[0])# + self.omega_d()
+        
+        omega_mpc = self.U_to_omega(U_mpc)
+        # print(f"Control input at this step: {omega_mpc}") 
     else:
         print(f"Solver failed to find a solution at {zeta_current}.")
-        u_mpc = np.zeros(self.n_u) 
+        # return False
+        omega_mpc = np.zeros(self.n_u) 
+    
+    print(f"U solution: {np.round(result.GetSolution(U[0]), decimals=2)}")
         
-    return u_mpc
+    return omega_mpc
+  
+  
+  
+  
   
   def rotation_matrix(self, phi, theta, psi):
     # Compute rotation matrix from body to world
