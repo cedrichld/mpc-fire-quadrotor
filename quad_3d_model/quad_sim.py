@@ -1,10 +1,12 @@
 import numpy as np
 from scipy.integrate import solve_ivp
 from quadrotor import Quadrotor
-from create_animation import animate_quadrotor
+from create_animation import Animation
 import matplotlib.pyplot as plt
 
-def simulate_quadrotor_3d(zeta0, tf, quadrotor, use_mpc=True, use_mpc_with_clf=False, use_clf_qp=False):
+def simulate_quadrotor_3d(
+  zeta0, tf, quadrotor, use_mpc_with_clf=False, use_integral_action=False, use_fb_lin=True
+  ):
   """
   Simulates the stabilized maneuver of a 3D quadrotor system.
 
@@ -23,7 +25,8 @@ def simulate_quadrotor_3d(zeta0, tf, quadrotor, use_mpc=True, use_mpc_with_clf=F
   omega = [np.zeros(quadrotor.n_u)]
   t = [t0]
   index = 0
-
+  print_U = False
+  
   while t[-1] < tf:
     current_time = t[-1]
     current_zeta = zeta[-1]
@@ -31,28 +34,24 @@ def simulate_quadrotor_3d(zeta0, tf, quadrotor, use_mpc=True, use_mpc_with_clf=F
     if not np.all(np.isfinite(current_zeta)):
       raise ValueError(f"State vector contains invalid values: {current_zeta}")
     
-    if not (index % 5.0):
+    print_U = False
+    if not (index % 10.0):
       print(f"Current_zeta: {np.round(current_zeta, decimals=2)}")
+      print_U = True
     index += 1
 
     # Compute remaining time to avoid overshooting
     remaining_time = tf - current_time
     dt = min(dt, remaining_time)  # Adjust dt dynamically
 
-    # print(f"Current time: {current_time}, Remaining time: {remaining_time}, Step size: {dt}")
     # Compute control input
-    if use_mpc:
-      current_omega_command = quadrotor.compute_mpc_feedback(current_zeta, use_mpc_with_clf)
-    elif use_clf_qp:
-      current_omega_command = quadrotor.compute_clf_qp_feedback(current_zeta)
-    else:
-      current_omega_command = quadrotor.compute_lqr_feedback(current_zeta)
+    current_omega_command = quadrotor.compute_mpc_feedback(
+      current_zeta, print_U=print_U, use_clf=use_mpc_with_clf, 
+      use_integral_action=use_integral_action, use_fb_lin=use_fb_lin
+    )
 
-    # if (i == False for i in current_omega_command):
-    #   print(f"Breaking the MPC Loop. i: {i for i in current_omega_command}")
-    #   break
     # Apply input limits
-    current_omega_real = np.clip(current_omega_command, 0, np.inf)
+    current_omega_real = np.clip(current_omega_command, -np.inf, np.inf)
 
     # Define ODE for current state
     def f(t, zeta):
@@ -76,6 +75,7 @@ def plot_results_3d(zeta, omega, t, name):
   """
   Plots the trajectory and control inputs of the 3D quadrotor.
   """
+  # trajectory
   plt.figure()
   ax = plt.axes(projection='3d')
   ax.plot3D(zeta[:, 0], zeta[:, 1], zeta[:, 2], label="Trajectory")
@@ -88,38 +88,58 @@ def plot_results_3d(zeta, omega, t, name):
   ax.set_title(f"3D Trajectory ({name})")
   plt.savefig(f"{name}_trajectory.png") 
   print(f"Saved trajectory plot as {name}_trajectory.png")
+  
+  # Retrieve limits
+  x_limits = ax.get_xlim()
+  y_limits = ax.get_ylim()
+  z_limits = ax.get_zlim()
 
+  # Angles
+  plt.figure()
+  plt.plot(t[1:], zeta[1:, 3], label="Phi")
+  plt.plot(t[1:], zeta[1:, 4], label="Theta")
+  plt.plot(t[1:], zeta[1:, 5], label="Psi")
+  plt.xlabel("Time (s)")
+  plt.ylabel("Angles (rad)")
+  plt.title(f"Angles over time ({name})")
+  plt.legend()
+  # plt.show()
+  plt.savefig(f"{name}_angles.png")
+  print(f"Saved angles plot as {name}_angles.png")
+  
   plt.figure()
   plt.plot(t[1:], omega[1:])
   plt.xlabel("Time (s)")
-  plt.ylabel("Control Inputs (N)")
+  plt.ylabel("Control Inputs (rad/s)")
   plt.title(f"Control Inputs ({name})")
   plt.legend([f"omega{i+1}" for i in range(omega.shape[1])])
   # plt.show()
   plt.savefig(f"{name}_inputs.png")
   print(f"Saved input plot as {name}_inputs.png")
+  
+  return x_limits, y_limits, z_limits
 
 if __name__ == '__main__':
   # Define system parameters
   # R = np.eye(4)
-  Q = np.diag([10, 10, 1000, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
-  R = np.diag([0.05, 1, 1, 1])
+  Q = np.diag([10, 10, 100, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
+  R = np.diag([0.1, 10, 100, 10])
   # Q = np.eye(12) * 0.1
   Qf = Q
 
   quadrotor = Quadrotor(Q, R, Qf)
 
   # Initial state (position, orientation, velocities)
-  zeta0 = np.array([0.75, 0, 1.0, 0, 0, 0, 0, 0, 0, 0, 0, 0])  # Hovering at 0.5m
+  zeta0 = np.array([0.75, 0, 1.0, 0, 0, 0, 0, 0, 0, 0, 0, 0])  # Hovering at
 
   # Simulation duration
-  tf = 10.0
+  tf = 5.0
 
   # Simulate the quadrotor
   zeta, omega, t = simulate_quadrotor_3d(zeta0, tf, quadrotor)
 
   # Plot results
-  plot_results_3d(zeta, omega, t, "3D Quadrotor")
+  x_limits, y_limits, z_limits = plot_results_3d(zeta, omega, t, "3D Quadrotor")
 
   # Animate the quadrotor
-  animate_quadrotor(zeta, t, Q, R, Qf)
+  Animation().animate_quadrotor(zeta, t, Q, R, Qf, x_limits, y_limits, z_limits)
