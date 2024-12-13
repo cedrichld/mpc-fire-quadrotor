@@ -10,6 +10,8 @@ from scipy.integrate import solve_ivp
 from scipy.linalg import expm, solve_continuous_are
 from scipy.linalg import solve_discrete_lyapunov
 
+from trajectory_testing import trajectory_references
+
 from pydrake.solvers import MathematicalProgram, Solve, OsqpSolver
 import pydrake.symbolic as sym
 
@@ -26,7 +28,7 @@ from pydrake.all import MonomialBasis, OddDegreeMonomialBasis, Variables
 #
 
 class Quadrotor(object):
-  def __init__(self, Q, R, Qf):
+  def __init__(self):
     # Parameters
     self.m = 0.698  # quadrotor mass (kg)
     self.g = 9.81   # g (m/s^2)
@@ -37,10 +39,15 @@ class Quadrotor(object):
     self.cq = (2.6839e-9) * (60 / (2 * np.pi))**2; # Torque/Drag Coef: N*m^2
     
     # Control-related parameters
-    self.Q = Q       # State cost matrix
-    self.R = R       # Input cost matrix
-    self.Qf = Qf     # Terminal cost matrix
-    self.Q_integral = Q  # Penalize integral error less than state error
+    self.Q = np.diag([2.5,   2.5,   2.5,     # x, y, z
+                      0.1,   0.1,   0.1,     # phi, theta, psi
+                      0.5,   0.5,   0.5,     # x_dot, y_dot, z_dot
+                      0.1,   0.1,   0.1])    # phi_dot, theta_dot, psi_dot
+
+    self.R = np.diag([0.25, 10, 100, 10])
+    self.Qf = self.Q # Not used
+    self.Q_integral = np.diag([0.05, 0.05, 0.05, 0, 0, 0, 0.02, 0.02, 0.02, 0, 0, 0])  # Penalize integral error less than state error
+    self.R_fb_lin = np.diag([5., 0, 0, 0])
     
     
     self.P_clf = None; # Matrix PP for Lyapunov Function (changed discretely)
@@ -53,7 +60,7 @@ class Quadrotor(object):
     # Input limits
     # self.omega_min = self.omega_ref * 0.5 # no motor input
     # self.omega_max = self.omega_ref * 2 # max rotation speed of 3 times required speed
-    self.U1_min, self.U1_max = - (self.m * self.g * 0.25), (self.m * self.g * 3)
+    self.U1_min, self.U1_max = - (self.m * self.g * 0.25), (self.m * self.g * 2)
     self.U2_min, self.U2_max = - math.inf, math.inf
     self.U3_min, self.U3_max = - math.inf, math.inf
     self.U4_min, self.U4_max = - math.inf, math.inf
@@ -75,12 +82,13 @@ class Quadrotor(object):
     # U^T = [F_z, tau_phi, tau_theta, tau_psi] or [U1, U2, U3, U4]
     
     
-  def zeta_d(self):
+  def zeta_d(self, t):
     # Nominal state
-    zeta = np.zeros(12)
-    zeta[0] = 0.
-    zeta[2] = 0.
+    # zeta = np.zeros(12)
+    # zeta[0] = 0.
+    # zeta[2] = 5.
     # zeta = np.array([0.09, 0., 12.14, -0., 0., 0., -0.02, -0., 0.07, 0., -0., -0.])
+    zeta = trajectory_references(t)
     return zeta # Hovering at the origin
 
   def U_d(self):
@@ -215,7 +223,7 @@ class Quadrotor(object):
 
     return A_d, B_d
 
-  def feedback_linearization(self, zeta_current):
+  def feedback_linearization(self, zeta_current, t):
     """
     Feedback linearization
 
@@ -238,7 +246,7 @@ class Quadrotor(object):
     x, y, z, phi, theta, psi, u, v, w,_,_,_ = zeta_current
 
     # Extract desired references from self.zeta_d()
-    zeta_ref = self.zeta_d()
+    zeta_ref = self.zeta_d(t)
     x_ref, y_ref, z_ref = zeta_ref[:3]
     phi_ref_d, theta_ref_d, psi_ref = zeta_ref[3:6]
     x_dot_ref, y_dot_ref, z_dot_ref = zeta_ref[6:9]
@@ -334,32 +342,45 @@ class Quadrotor(object):
         dynamics_constraint, np.zeros_like(zeta[0])
       )
 
-  def add_integral_dynamics_constraint(self, prog, zeta, zeta_integral, zeta_current, N):
+  def add_integral_dynamics_constraint(self, prog, zeta, zeta_integral, zeta_current, t, N):
       # Initial integral state
       prog.AddBoundingBoxConstraint(np.zeros_like(zeta_current), np.zeros_like(zeta_current), zeta_integral[0])
       
       for i in range(N - 1):
-          integral_update = zeta_integral[i + 1] - zeta_integral[i] - (zeta[i] - self.zeta_d())
+          integral_update = zeta_integral[i + 1] - zeta_integral[i] - (zeta[i] - self.zeta_d(t))
           prog.AddLinearEqualityConstraint(integral_update, np.zeros_like(zeta_current))
 
    
-  def add_cost(self, prog, zeta, U, N):
+  def add_cost(self, prog, zeta, t, U, N):
     cost = 0
     
     for i in range(N - 1):
       # Penalize state deviation and input effort
-      cost += (zeta[i] - self.zeta_d()).T @ self.Q @ (zeta[i] - self.zeta_d())
+      cost += (zeta[i] - self.zeta_d(t)).T @ self.Q @ (zeta[i] - self.zeta_d(t))
       cost += (U[i] - self.U_d()).T @ self.R @ (U[i] - self.U_d())
       
     # cost += zeta[N - 1].T @ self.Qf @ zeta[N - 1]
     prog.AddQuadraticCost(cost)
     
-  def add_cost_w_integral_action(self, prog, zeta, zeta_integral, U, N):
+  def add_cost_fb_lin(self, prog, zeta, t, U1_fb, phi_fb, theta_fb, U, N):
+    cost = 0
+    U_fb = np.array([U1_fb, phi_fb, theta_fb, 0])
+    for i in range(N - 1):
+      # Penalize state deviation and input effort
+      cost += (zeta[i] - self.zeta_d(t)).T @ self.Q @ (zeta[i] - self.zeta_d(t))
+      cost += (U[i] - self.U_d()).T @ self.R @ (U[i] - self.U_d())
+      
+      cost += (U[i] - U_fb).T @ self.R_fb_lin @ (U[i] - U_fb)
+      
+    # cost += zeta[N - 1].T @ self.Qf @ zeta[N - 1]
+    prog.AddQuadraticCost(cost)
+    
+  def add_cost_w_integral_action(self, prog, zeta, zeta_integral, t, U, N):
     cost = 0
     
     for i in range(N - 1):
       # Penalize state deviation and input effort
-      cost += (zeta[i] - self.zeta_d()).T @ self.Q @ (zeta[i] - self.zeta_d())
+      cost += (zeta[i] - self.zeta_d(t)).T @ self.Q @ (zeta[i] - self.zeta_d(t))
       cost += (U[i] - self.U_d()).T @ self.R @ (U[i] - self.U_d())
       
       # Penalize integral of error
@@ -367,7 +388,7 @@ class Quadrotor(object):
     
     prog.AddQuadraticCost(cost)
     
-  def add_clf_constraint(self, prog, zeta, zeta_current, N):
+  def add_clf_constraint(self, prog, zeta, zeta_current, t, N):
     """
     Adds a Control Lyapunov Function (CLF) constraint to ensure stability.
     """
@@ -377,8 +398,8 @@ class Quadrotor(object):
     alpha = self.alpha_clf  # Decay rate for CLF constraint
 
     for i in range(N - 1):
-      V_next = (zeta[i + 1] - self.zeta_d()).T @ P @ (zeta[i + 1] - self.zeta_d())
-      V_current = (zeta[i] - self.zeta_d()).T @ P @ (zeta[i] - self.zeta_d())
+      V_next = (zeta[i + 1] - self.zeta_d(t)).T @ P @ (zeta[i + 1] - self.zeta_d(t))
+      V_current = (zeta[i] - self.zeta_d(t)).T @ P @ (zeta[i] - self.zeta_d(t))
       clf_constraint = V_next - V_current + alpha * V_current
       prog.AddLinearConstraint(clf_constraint <= 0)
     
@@ -390,14 +411,15 @@ class Quadrotor(object):
     U_min, U_max = self.U_min, self.U_max
     
     assert not np.isnan(U1_fb), "U1 is NaN!"
-    U_min[0], U_max[0] = U1_fb - 0.1, U1_fb + 0.1
+    U_min[0], U_max[0] = U1_fb - .5, U1_fb + .5
     for i in range(N - 1):
         # prog.AddBoundingBoxConstraint(phi_ref - 0.2, phi_ref + 0.2, zeta[i][3])  # Roll angle
         # prog.AddBoundingBoxConstraint(theta_ref - 0.25, theta_ref + 0.25, zeta[i][4])  # Pitch angle
         prog.AddBoundingBoxConstraint(U_min, U_max, U[i])  # Thrust control
      
   def compute_mpc_feedback(
-    self, zeta_current, print_U=False, use_clf=False, use_integral_action=False, use_fb_lin=False
+    self, zeta_current, t, print_U=False, use_clf=False, 
+    use_integral_action=False, use_fb_lin=False
     ):
     '''
     This function computes the MPC controller input omega
@@ -426,22 +448,29 @@ class Quadrotor(object):
         for i in range(N):
             zeta_integral[i] = prog.NewContinuousVariables(self.n_zeta, "z_int_" + str(i))
 
-    # Apply feedback linearization if enabled
-    if use_fb_lin:
-      phi_ref, theta_ref, U1_fb = self.feedback_linearization(zeta_current)
-      # Add feedback linearization constraints
-      self.add_fb_lin_constraints(prog, phi_ref, theta_ref, U1_fb, zeta, U, N)
-
     # Add constraints and cost
     self.add_initial_state_constraint(prog, zeta, zeta_current)
-    # self.add_input_saturation_constraint(prog, U, N)
+    
+    # Apply feedback linearization if enabled
+    # if use_fb_lin:
+    #   phi_ref, theta_ref, U1_fb = self.feedback_linearization(zeta_current, t)
+    #   # Add feedback linearization constraints
+    #   self.add_fb_lin_constraints(prog, phi_ref, theta_ref, U1_fb, zeta, U, N)
+    # else:
+    self.add_input_saturation_constraint(prog, U, N)
+    
     self.add_dynamics_constraint(prog, zeta, U, N, T)
     
     if use_integral_action:
-      self.add_integral_dynamics_constraint(prog, zeta, zeta_integral, zeta_current, N)
-      self.add_cost_w_integral_action(prog, zeta, zeta_integral, U, N)
+      self.add_integral_dynamics_constraint(prog, zeta, zeta_integral, zeta_current, t, N)
+      self.add_cost_w_integral_action(prog, zeta, zeta_integral, t, U, N)
+    elif use_fb_lin:
+      phi_fb, theta_fb, U1_fb = self.feedback_linearization(zeta_current, t)
+      if print_U:
+        print(f"U1_fb is {U1_fb}, phi_fb is {phi_fb}, theta_fb is {theta_fb}")
+      self.add_cost_fb_lin(prog, zeta, t, U1_fb, phi_fb, theta_fb, U, N)
     else:
-      self.add_cost(prog, zeta, U, N)
+      self.add_cost(prog, zeta, t, U, N)
     
     if use_clf:
       self.add_clf_constraint(prog, zeta, zeta_current, N)

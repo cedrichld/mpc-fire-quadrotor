@@ -38,7 +38,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV='/mnt/c/Users/Cedric/Desktop/Cedric School " Work/UPenn/Year 4/MEAM 5170/Final_project/fire_quadrotor/quad_3d_model/env'
+VIRTUAL_ENV='/mnt/c/Users/Cedric/Desktop/Cedric School " Work/UPenn/Year 4/MEAM 5170/Final_project/fire_quadrotor/quad_3d_model_old/env'
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"

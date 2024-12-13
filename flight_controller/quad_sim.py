@@ -4,8 +4,10 @@ from quadrotor import Quadrotor
 from create_animation import Animation
 import matplotlib.pyplot as plt
 
+from trajectory_testing import plot_ref_trajectory
+
 def simulate_quadrotor_3d(
-  zeta0, tf, quadrotor, use_mpc_with_clf=False, use_integral_action=False, use_fb_lin=True
+  zeta0, tf, quadrotor
   ):
   """
   Simulates the stabilized maneuver of a 3D quadrotor system.
@@ -46,9 +48,7 @@ def simulate_quadrotor_3d(
 
     # Compute control input
     current_omega_command = quadrotor.compute_mpc_feedback(
-      current_zeta, print_U=print_U, use_clf=use_mpc_with_clf, 
-      use_integral_action=use_integral_action, use_fb_lin=use_fb_lin
-    )
+      current_zeta, current_time, print_U=print_U)
 
     # Apply input limits
     current_omega_real = np.clip(current_omega_command, -np.inf, np.inf)
@@ -81,6 +81,9 @@ def plot_results_3d(zeta, omega, t, name):
   ax.plot3D(zeta[:, 0], zeta[:, 1], zeta[:, 2], label="Trajectory")
   ax.scatter(zeta[0, 0], zeta[0, 1], zeta[0, 2], color='red', label="Start")
   ax.scatter(zeta[-1, 0], zeta[-1, 1], zeta[-1, 2], color='green', label="End")
+  
+  plot_ref_trajectory(ax)
+  
   ax.set_xlabel("X (m)")
   ax.set_ylabel("Y (m)")
   ax.set_zlabel("Z (m)")
@@ -120,17 +123,11 @@ def plot_results_3d(zeta, omega, t, name):
   return x_limits, y_limits, z_limits
 
 if __name__ == '__main__':
-  # Define system parameters
-  # R = np.eye(4)
-  Q = np.diag([10, 10, 100, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
-  R = np.diag([0.1, 10, 100, 10])
-  # Q = np.eye(12) * 0.1
-  Qf = Q
 
-  quadrotor = Quadrotor(Q, R, Qf)
+  quadrotor = Quadrotor()
 
   # Initial state (position, orientation, velocities)
-  zeta0 = np.array([0.75, 0, 1.0, 0, 0, 0, 0, 0, 0, 0, 0, 0])  # Hovering at
+  zeta0 = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])  # Hovering at
 
   # Simulation duration
   tf = 5.0
@@ -142,4 +139,4 @@ if __name__ == '__main__':
   x_limits, y_limits, z_limits = plot_results_3d(zeta, omega, t, "3D Quadrotor")
 
   # Animate the quadrotor
-  Animation().animate_quadrotor(zeta, t, Q, R, Qf, x_limits, y_limits, z_limits)
+  Animation().animate_quadrotor(zeta, t, x_limits, y_limits, z_limits)
