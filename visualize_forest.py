@@ -9,10 +9,12 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 from forrest_generation import generate_random_forest_with_grid
 from firezone import *
-from astar import a_star_2d
+# from astar import a_star_2d
 from rrt_star import rrt_star, plot_rrt_attempts
 from smooth_path import *
 from path_points_generation import *
+
+from flight_controller.flight_controller import Flight_Controller
 
 def visualize_forest(space_dim, obstacles, fire_zone, start_pos, goal_pos, fire_zone_trees=None):
     """
@@ -130,7 +132,7 @@ def visualize_forest_2d(space_dim, obstacles, fire_zone, start_pos, goal_pos, fi
 if __name__ == "__main__":
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Visualize forest environment for path planning.")
-    parser.add_argument("mode", choices=["2d", "3d", "a_star_2d", "rrt_star_2d"], 
+    parser.add_argument("mode", choices=["2d", "3d", "rrt_star_2d"], 
         help="Visualization mode: '2d' for 2D visualization, '3d' for 3D visualization, 'a_star' for pathfinding.")
     args = parser.parse_args()
 
@@ -194,52 +196,52 @@ if __name__ == "__main__":
         plt.gca().set_aspect('equal', adjustable='box')
         plt.show()
 
-    ## A*
-    elif args.mode == "a_star_2d":
-        # Combine trees for obstacle input
-        obstacles = trees_outside + trees_inside
+    # ## A*
+    # elif args.mode == "a_star_2d":
+    #     # Combine trees for obstacle input
+    #     obstacles = trees_outside + trees_inside
         
-        # Run A* Pathfinding
-        print("\n=== A* Pathfinding ===")
+    #     # Run A* Pathfinding
+    #     print("\n=== A* Pathfinding ===")
 
-        # Adjust goal position if it is in collision
-        adjusted_goal_pos = adjust_goal_position_smoothly(
-            goal_pos[:2], obstacles, inflation=0.05, step_size=0.5, max_attempts=50
-        )
+    #     # Adjust goal position if it is in collision
+    #     adjusted_goal_pos = adjust_goal_position_smoothly(
+    #         goal_pos[:2], obstacles, inflation=0.05, step_size=0.5, max_attempts=50
+    #     )
         
-        if adjusted_goal_pos is None:
-            print("No valid goal position could be determined.")
-            exit()
-        goal_pos = (*adjusted_goal_pos, 0)
+    #     if adjusted_goal_pos is None:
+    #         print("No valid goal position could be determined.")
+    #         exit()
+    #     goal_pos = (*adjusted_goal_pos, 0)
         
-        visualize_forest_2d(space_dim[:2], trees_outside, fire_zone, start_pos, goal_pos, trees_inside)
+    #     visualize_forest_2d(space_dim[:2], trees_outside, fire_zone, start_pos, goal_pos, trees_inside)
         
-        start_time = time.perf_counter()
-        path, visited_positions = a_star_2d(start_pos[:2], goal_pos[:2], obstacles, space_dim[:2], eps=0.5)
-        end_time = time.perf_counter()
-        elapsed_time = (end_time - start_time) * 1000
+    #     start_time = time.perf_counter()
+    #     path, visited_positions = a_star_2d(start_pos[:2], goal_pos[:2], obstacles, space_dim[:2], eps=0.5)
+    #     end_time = time.perf_counter()
+    #     elapsed_time = (end_time - start_time) * 1000
 
-        if path:
-            path_cost = sum(np.linalg.norm(np.array(path[i]) - np.array(path[i + 1])) for i in range(len(path) - 1))
-            print(f"A* Path found in {elapsed_time:.2f} ms with cost {path_cost:.2f}")
+    #     if path:
+    #         path_cost = sum(np.linalg.norm(np.array(path[i]) - np.array(path[i + 1])) for i in range(len(path) - 1))
+    #         print(f"A* Path found in {elapsed_time:.2f} ms with cost {path_cost:.2f}")
 
-            # Smooth the path
-            smoothed_path = smooth_path_with_collision_avoidance(path, obstacles)
-            smoothed_path_x, smoothed_path_y = smoothed_path[:2]
+    #         # Smooth the path
+    #         smoothed_path = smooth_path_with_collision_avoidance(path, obstacles)
+    #         smoothed_path_x, smoothed_path_y = smoothed_path[:2]
 
-            # Visualize in 2D
-            fig, ax = plt.subplots(figsize=(10, 10))
-            ax.set_xlim(0, space_dim[0])
-            ax.set_ylim(0, space_dim[1])
+    #         # Visualize in 2D
+    #         fig, ax = plt.subplots(figsize=(10, 10))
+    #         ax.set_xlim(0, space_dim[0])
+    #         ax.set_ylim(0, space_dim[1])
 
             
-            path_x, path_y = zip(*path)
-            ax.plot(path_x, path_y, color='purple', linewidth=2, label='A* Path')
+    #         path_x, path_y = zip(*path)
+    #         ax.plot(path_x, path_y, color='purple', linewidth=2, label='A* Path')
 
-            # Smoothed path
-            ax.plot(smoothed_path_x, smoothed_path_y, color='cyan', linestyle='--', linewidth=2, label='Smoothed Path')
-        else:
-            print(f"A* failed to find a path in {elapsed_time:.2f} ms.")
+    #         # Smoothed path
+    #         ax.plot(smoothed_path_x, smoothed_path_y, color='cyan', linestyle='--', linewidth=2, label='Smoothed Path')
+    #     else:
+    #         print(f"A* failed to find a path in {elapsed_time:.2f} ms.")
     
     ## RRT*
     elif args.mode == "rrt_star_2d":

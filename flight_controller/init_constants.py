@@ -1,7 +1,7 @@
 import numpy as np
 import math
 
-class Constants(object):
+class Quad_Constants(object):
     # Constants
     def __init__(self):
         # Constants

@@ -1,9 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-from init_constants import Constants
+from init_constants import Quad_Constants
 
-def trajectory_reference(constants, t, r=2, f=0.025, height_i=2, height_f=5):
+def trajectory_reference(constants, t, r=2, f=0.025, height_i=2, height_f=5, x=None, y=None, z=None):
     """
     Python version of the MATLAB trajectory_generator function.
     
@@ -36,9 +36,9 @@ def trajectory_reference(constants, t, r=2, f=0.025, height_i=2, height_f=5):
 
     # Compute trajectories based on the selected trajectory
     if trajectory == 1:
-        x = 1.5 * t / 10 + 1 + 2 * np.cos(t / 5)
-        y = 1.5 * t / 10 - 2 + 2 * np.sin(t / 5)
-        z = height_i + (d_height / t[-1]) * t + 20 * np.sin(0.3 * t)
+        x = 1.5 * t / 10 + 1 + 3 * np.cos(t / 5)
+        y = 1.5 * t / 10 - 2 + 3 * np.sin(t / 5)
+        z = height_i + (d_height / t[-1]) * t + 4 * np.sin(0.3 * t)
 
     elif trajectory == 2:
         x = (r / 10 * t + 2) * np.cos(alpha + t / 5)
@@ -215,7 +215,7 @@ def plot_ref_trajectory_with_arrows(t, r, f, height_i, height_f,
     plt.show()
 
 if __name__ == "__main__":
-    constants = Constants()
+    constants = Quad_Constants()
     
     tf = 100
     innerDyn_length = constants.innerDyn_length

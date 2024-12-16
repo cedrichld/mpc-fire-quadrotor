@@ -5,7 +5,7 @@ import pydrake.symbolic as sym
 import matplotlib.pyplot as plt
 from create_animation import Animation
 
-from init_constants import Constants
+from init_constants import Quad_Constants
 from MPC_controller import MPC, U_to_omega
 from LPV import LPV
 from full_dynamics import full_dynamics
@@ -23,7 +23,7 @@ from position_controller import feedback_linearization
 #
 
 class Flight_Controller(object):
-    constants = Constants()
+    constants = Quad_Constants()
         
     def time_conversion(self, t0, tf):
         t = np.linspace(t0, tf, (int)(tf / (constants.Ts * constants.innerDyn_length)))
@@ -35,7 +35,7 @@ class Flight_Controller(object):
         controlled_states = constants.controlled_states # number of controlled states in this script
         innerDyn_length = constants.innerDyn_length     # number of inner loop iterations
         hz = constants.hz                               # horizon period
-        integral_steps = 80
+        integral_steps = 80 #80
 
         total_innerDyn = (len(t) * innerDyn_length)
         dt = 1 / total_innerDyn
@@ -211,7 +211,7 @@ class Flight_Controller(object):
                     # Update states to final of this sub-step
                     states_current = sol.y[:, -1]
                 
-                # After 30 sub-steps, we've integrated a full Ts interval
+                # After #integral_steps sub-steps, we've integrated a full Ts interval
                 states = states_current
                 
                 
@@ -316,8 +316,25 @@ def plot_results_3d(constants, zeta, t0, tf, name):
 
     return x_limits, y_limits, z_limits, t_ref
 
+def fcn():
+    constants = Quad_Constants()
+    controller = Flight_Controller()
+    # Generate reference signals
+    t0 = 0
+    tf = 100
+    
+    t = controller.time_conversion(t0, tf)
+    traj_ref = trajectory_reference(constants, t)
+    
+    states_total, t0, tf = controller.mpc_controller(t, traj_ref)
+    x_limits, y_limits, z_limits, t = plot_results_3d(constants, states_total, t0, tf, "3d_Quad")
+    
+    # Animate the quadrotor
+    Animation().animate_quadrotor(constants, states_total, t, x_limits, y_limits, z_limits)
+
 if __name__ == "__main__":
-    constants = Constants()
+    # fcn()
+    constants = Quad_Constants()
     controller = Flight_Controller()
     # Generate reference signals
     t0 = 0
