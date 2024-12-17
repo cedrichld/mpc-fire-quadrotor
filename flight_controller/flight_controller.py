@@ -34,7 +34,7 @@ class Flight_Controller(object):
         controlled_states = constants.controlled_states # number of controlled states in this script
         innerDyn_length = constants.innerDyn_length     # number of inner loop iterations
         hz = constants.hz                               # horizon period
-        integral_steps = 20 #80
+        integral_steps = 80 #80
 
         total_innerDyn = (len(t) * innerDyn_length)
         dt = 1 / total_innerDyn
@@ -229,7 +229,7 @@ class Flight_Controller(object):
         
         return states_total, t0, tf
 
-    def plot_mpc_results_3d(self, constants, zeta, t0, tf, ax, name,
+    def plot_mpc_results_3d(self, constants, zeta, t0, tf, ax_tpv, ax_non_tpv, name,
                             t_ref=0, x=None, y=None, z=None
     ):
         """
@@ -267,27 +267,43 @@ class Flight_Controller(object):
         # TRAJECTORY
         # plt.figure()
         # ax = plt.axes(projection='3d')
-        
-        # np.array([ut, vt, wt, pt, qt, rt, xt, yt, zt, phit, thetat, psit])
-        ax.plot3D(zeta[:, 6], zeta[:, 7], zeta[:, 8], 'r--', lw=1, label="Trajectory")
-        ax.scatter(zeta[0, 6], zeta[0, 7], zeta[0, 8], color='red', label="Start")
-        # print(f"Start: {zeta[0, 6], zeta[0, 7], zeta[0, 8]}")
-        ax.scatter(zeta[-1, 6], zeta[-1, 7], zeta[-1, 8], color='green', label="End")
-        # print(f"End: {zeta[-1, 6], zeta[-1, 7], zeta[-1, 8]}")
-        
-             
-        plot_ref_trajectory(constants, t_ref, ax, x=x, y=y, z=z)
-        t_ref = np.linspace(t0, tf, len(zeta[:,0]))
+        for ax in [ax_tpv]:
+            # np.array([ut, vt, wt, pt, qt, rt, xt, yt, zt, phit, thetat, psit])
+            ax.plot(zeta[:, 6], zeta[:, 7], zeta[:, 8], 'r--', lw=1, label="Trajectory")
+            ax.scatter(zeta[0, 6], zeta[0, 7], zeta[0, 8], color='red', label="Start")
+            # print(f"Start: {zeta[0, 6], zeta[0, 7], zeta[0, 8]}")
+            ax.scatter(zeta[-1, 6], zeta[-1, 7], zeta[-1, 8], color='green', label="End")
+            # print(f"End: {zeta[-1, 6], zeta[-1, 7], zeta[-1, 8]}")
+            
+                
+            plot_ref_trajectory(constants, t_ref, ax, x=x, y=y, z=z)
+            
+            # ax.legend()
+            # ax.set_title(f"3D Trajectory ({name})")
+            # Retrieve limits
+            
+        for ax in [ax_non_tpv]:   
+            (X_ref, X_dot_ref, X_dot_dot_ref, 
+            Y_ref, Y_dot_ref, Y_dot_dot_ref,
+            Z_ref, Z_dot_ref, Z_dot_dot_ref, 
+            psi_ref) = traj_ref = trajectory_reference(
+                        constants, t_ref, x=x, y=y, z=z)
 
-        ax.set_xlabel("X (m)")
-        ax.set_ylabel("Y (m)")
-        ax.set_zlabel("Z (m)")
-        # ax.legend()
-        # ax.set_title(f"3D Trajectory ({name})")
-        # Retrieve limits
-        x_limits = ax.get_xlim()
-        y_limits = ax.get_ylim()
-        z_limits = ax.get_zlim()
+            # Extract trajectory data
+            x_vals = X_ref[:,1]
+            y_vals = Y_ref[:,1]
+            z_vals = Z_ref[:,1]
+
+            # Plot the trajectory
+            # fig = plt.figure()
+            # ax = fig.add_subplot(111, projection='3d')
+            
+            ax.plot(x_vals, y_vals, label="Reference Trajectory", color="blue")
+            
+        t_ref = np.linspace(t0, tf, len(zeta[:,0]))
+        x_limits = 0 # ax_non_tpv.get_xlim()
+        y_limits = 0 # ax_non_tpv.get_ylim()
+        z_limits = 0 # ax_non_tpv.get_zlim()
         # plt.savefig(f"{name}_trajectory.png") 
         # print(f"Saved trajectory plot as {name}_trajectory.png\n")
         # plt.show()

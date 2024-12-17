@@ -4,7 +4,7 @@ import numpy as np
 from obstacles import is_point_in_collision
 from scipy.interpolate import splprep, splev
 
-def adjust_goal_position_smoothly(goal_pos, obstacles, inflation, dim=2, step_size=0.5, max_attempts=50):
+def adjust_goal_position_smoothly(goal_pos, obstacles, inflation, dim=2, step_size=0.25, max_attempts=50):
     """
     Adjust the goal position to ensure it is not in collision.
 
@@ -26,7 +26,7 @@ def adjust_goal_position_smoothly(goal_pos, obstacles, inflation, dim=2, step_si
         goal_pos = np.array(goal_pos) + step_size * direction / np.linalg.norm(direction)
     raise RuntimeError("Failed to adjust goal position within constraints.")
 
-def generate_extinguishing_path(fire_zone, step_size=3.0, inward_translation=0.5):
+def generate_extinguishing_path(fire_zone, step_size=5.0, inward_translation=3.0):
     """
     Generate a spiral-like extinguishing path by following the boundary of the fire zone
     and progressively shrinking inward.

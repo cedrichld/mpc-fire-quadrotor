@@ -21,28 +21,28 @@ class Animation:
         ]).T
         return R @ motor_offsets + np.array([[X], [Y], [Z]])
         
-    def animate_quadrotor(self, previous_ax, constants, x, t, x_limits, y_limits, z_limits,
+    def animate_quadrotor(self, fig, ax_tpv, ax_non_tpv, constants, x, t,
                           xr=None, yr=None, zr=None):
         """
         Animates the quadrotor's 3D trajectory and its body frame.
         """
-        fig = plt.figure(figsize=(20, 9), dpi=150)
+        # fig = plt.figure(figsize=(20, 9), dpi=150)
         # _, ax_tpv = visualize_forest_2d(space_dim, trees_outside, fire_zone, start_pos, goal_pos, trees_inside)
-        ax_tpv = fig.add_subplot(121, projection='3d')
-        # ax_tpv = previous_ax
-        ax_non_tpv = fig.add_subplot(122, projection='3d')
+        # ax_tpv = fig.add_subplot(121, projection='3d')
+        # # ax_tpv = previous_ax
+        # ax_non_tpv = fig.add_subplot(122, projection='3d')
         # ax_non_tpv = previous_ax
         
         # 2. Adjust subplot parameters for better spacing ###
         plt.subplots_adjust(left=0.05, right=0.95, bottom=0.05, top=0.95, wspace=0.3, hspace=0.2)
         
         # Fixed axis limits based on camera frame
-        view_range = 1.0 
-        camera_offset_body = np.array([view_range, 0, 0.25])
+        view_range = 2.0 
+        camera_offset_body = np.array([view_range, view_range, 0.25])
         
         # Static view initialization
-        alpha = 0.5  # Damping factor for smoothing azimuth changes
-        fixed_elev = 15
+        alpha = 0.05  # Damping factor for smoothing azimuth changes
+        fixed_elev = 35
         # Initialize smoothed azimuth to the first heading angle minus 180 degrees (to position camera behind)
         ut_init, vt_init,_,_,_,_, xt_init, yt_init, zt_init,_,_,_ = x[0]
         
@@ -63,11 +63,11 @@ class Animation:
         ax_tpv.set_zlim([camera_pos_z_i - view_range, camera_pos_z_i + view_range])
         ax_tpv.view_init(elev=fixed_elev, azim=smoothed_azim+45)  # Fixed viewpoint
         
-        ax_non_tpv.set_zlim(x_limits)
-        ax_non_tpv.set_ylim(y_limits)
-        ax_non_tpv.set_zlim(z_limits)
+        # ax_non_tpv.set_zlim(x_limits)
+        # ax_non_tpv.set_ylim(y_limits)
+        # ax_non_tpv.set_zlim(z_limits)
         
-        for ax in [ax_tpv, ax_non_tpv]:
+        for ax in [ax_tpv]:
             ax.set_xlabel('X (m)')
             ax.set_ylabel('Y (m)')
             ax.set_zlabel('Z (m)')
@@ -77,28 +77,28 @@ class Animation:
             ax.scatter(x[-1, 6], x[-1, 7], x[-1, 8], color='green', label="Goal")
             ax.legend(loc='upper right')
         
-            # TPV
-            drone_body1_tpv, = ax_tpv.plot([], [], [], 'k-', lw=2)  # Body arms1
-            drone_body2_tpv, = ax_tpv.plot([], [], [], 'k-', lw=2)  # Body arms2
-            motors_tpv, = ax_tpv.plot([], [], [], 'ro', markersize=4)  # Motor points
-            trajectory_tpv, = ax_tpv.plot([], [], [], 'b--', lw=1, label="Trajectory")  # Trajectory line in blue
-            ref_point_tpv, = ax_tpv.plot([], [], [], 'go', markersize=4)  # Reference point
-            text_object_tpv = ax_tpv.text2D(0.05, 0.95, '', transform=ax_tpv.transAxes, 
-                                        ha='left', va='top', fontsize=12, color='blue')  # Increased font size
-            
-            # Non-TPV
-            drone_body1_non_tpv, = ax_non_tpv.plot([], [], [], 'k-', lw=2)  # Body arms1
-            drone_body2_non_tpv, = ax_non_tpv.plot([], [], [], 'k-', lw=2)  # Body arms2
-            motors_non_tpv, = ax_non_tpv.plot([], [], [], 'ro', markersize=4)  # Motor points
-            trajectory_non_tpv, = ax_non_tpv.plot([], [], [], 'g--', lw=1, label="Trajectory")  # Trajectory line in green
-            ref_point_non_tpv, = ax_non_tpv.plot([], [], [], 'go', markersize=4)  # Reference point
-            text_object_non_tpv = ax_non_tpv.text2D(0.05, 0.95, '', transform=ax_non_tpv.transAxes, 
-                                                ha='left', va='top', fontsize=12, color='blue')  # Increased font size
-            
-            # Plot reference trajectory on both subplots
-            plot_ref_trajectory(constants, t, ax_tpv, x=xr, y=yr, z=zr)
-            plot_ref_trajectory(constants, t, ax_non_tpv, x=xr, y=yr, z=zr)
-            
+        # TPV
+        drone_body1_tpv, = ax_tpv.plot([], [], [], 'k-', lw=2)  # Body arms1
+        drone_body2_tpv, = ax_tpv.plot([], [], [], 'k-', lw=2)  # Body arms2
+        motors_tpv, = ax_tpv.plot([], [], [], 'ro', markersize=4)  # Motor points
+        trajectory_tpv, = ax_tpv.plot([], [], [], 'b--', lw=1, label="Trajectory")  # Trajectory line in blue
+        ref_point_tpv, = ax_tpv.plot([], [], [], 'go', markersize=4)  # Reference point
+        text_object_tpv = ax_tpv.text2D(0.05, 0.95, '', transform=ax_tpv.transAxes, 
+                                    ha='left', va='top', fontsize=12, color='blue')  # Increased font size
+        
+        # Non-TPV
+        drone_body1_non_tpv, = ax_non_tpv.plot([], [], 'k-', lw=2)  # Body arms1
+        drone_body2_non_tpv, = ax_non_tpv.plot([], [], 'k-', lw=2)  # Body arms2
+        motors_non_tpv, = ax_non_tpv.plot([], [], 'ro', markersize=4)  # Motor points
+        trajectory_non_tpv, = ax_non_tpv.plot([], [], 'g--', lw=1, label="Trajectory")  # Trajectory line in green
+        ref_point_non_tpv, = ax_non_tpv.plot([], [], 'go', markersize=4)  # Reference point
+        text_object_non_tpv = ax_non_tpv.text(0.05, 0.95, '', transform=ax_non_tpv.transAxes, 
+                                            ha='left', va='top', fontsize=12, color='blue')  # Increased font size
+        
+        # Plot reference trajectory on both subplots
+        # plot_ref_trajectory(constants, t, ax_tpv, x=xr, y=yr, z=zr)
+        # plot_ref_trajectory(constants, t, ax_non_tpv, x=xr, y=yr, z=zr)
+        
         
         def angle_diff(desired, current):
             """Compute minimal difference between two angles."""
@@ -137,10 +137,6 @@ class Animation:
             ax_tpv.set_xlim([camera_pos_x - view_range, camera_pos_x + view_range])
             ax_tpv.set_ylim([camera_pos_y - view_range, camera_pos_y + view_range])
             ax_tpv.set_zlim([camera_pos_z - view_range, camera_pos_z + view_range])
-            
-            
-            
-            
             
             # Extract references (only once, outside of update if possible, for efficiency)
             (X_ref, X_dot_ref, X_dot_dot_ref,
@@ -202,21 +198,21 @@ class Animation:
             body_z2_non_tpv = [motor_positions[2, 1], motor_positions[2, 3]]
             
             drone_body1_non_tpv.set_data(body_x1_non_tpv, body_y1_non_tpv)
-            drone_body1_non_tpv.set_3d_properties(body_z1_non_tpv)
+            # drone_body1_non_tpv.set_3d_properties(body_z1_non_tpv)
             
             drone_body2_non_tpv.set_data(body_x2_non_tpv, body_y2_non_tpv)
-            drone_body2_non_tpv.set_3d_properties(body_z2_non_tpv)
+            # drone_body2_non_tpv.set_3d_properties(body_z2_non_tpv)
             
             motors_non_tpv.set_data(motor_positions[0, :], motor_positions[1, :])
-            motors_non_tpv.set_3d_properties(motor_positions[2, :])
+            # motors_non_tpv.set_3d_properties(motor_positions[2, :])
             
             # Update trajectory for Non-TPV ###
             trajectory_non_tpv.set_data(x[:frame, 6], x[:frame, 7])
-            trajectory_non_tpv.set_3d_properties(x[:frame, 8])
+            # trajectory_non_tpv.set_3d_properties(x[:frame, 8])
             
             # Update reference point for Non-TPV ###
             ref_point_non_tpv.set_data([x_ref], [y_ref])
-            ref_point_non_tpv.set_3d_properties([z_ref])
+            # ref_point_non_tpv.set_3d_properties([z_ref])
             
             # Update error texts ###
             text_object_tpv.set_text(f'Error: {error:.2f} m')

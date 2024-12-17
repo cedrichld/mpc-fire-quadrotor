@@ -31,47 +31,56 @@ def visualize_forest(space_dim, obstacles, fire_zone, start_pos, goal_pos, fire_
         goal_pos (tuple): Goal position of the drone.
         fire_zone_trees (list): Trees inside the fire zone, displayed in orange. (Optional)
     """
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.set_xlim(0, space_dim[0])
-    ax.set_ylim(0, space_dim[1])
-    ax.set_zlim(0, space_dim[2])
+    fig = plt.figure(figsize=(20, 9), dpi=150)
+    ax_tpv = fig.add_subplot(121, projection='3d')
+    ax_non_tpv = fig.add_subplot(122)
+    alpha = [0.75, 0.5]
+    # ax_non_tpv.view_init(elev=90 ,azim=180+45)
+    
+    ax_tpv.set_xlim(0, space_dim[0])
+    ax_tpv.set_ylim(0, space_dim[1])
+    ax_tpv.set_zlim(0, space_dim[2])
 
-    # Plot trees outside fire zone
-    for obstacle in obstacles:
-        u = np.linspace(0, 2 * np.pi, 20)
-        v = np.linspace(0, 1, 10)
-        x = obstacle.radius * np.outer(np.cos(u), np.ones(len(v))) + obstacle.center[0]
-        y = obstacle.radius * np.outer(np.sin(u), np.ones(len(v))) + obstacle.center[1]
-        z = obstacle.height * np.outer(np.ones(len(u)), v) + obstacle.center[2]
-        ax.plot_surface(x, y, z, color='green', alpha=0.5)
-
-    # Plot trees inside fire zone (if provided)
-    if fire_zone_trees:
-        for obstacle in fire_zone_trees:
+    visualize_forest_2d(space_dim, obstacles, fire_zone, start_pos, goal_pos, fire_zone_trees=fire_zone_trees, ax=ax_non_tpv)
+    
+    for idx, ax in enumerate([ax_tpv]):
+        ax.grid(False)    
+        
+        # Plot trees outside fire zone
+        for obstacle in obstacles:
             u = np.linspace(0, 2 * np.pi, 20)
             v = np.linspace(0, 1, 10)
             x = obstacle.radius * np.outer(np.cos(u), np.ones(len(v))) + obstacle.center[0]
             y = obstacle.radius * np.outer(np.sin(u), np.ones(len(v))) + obstacle.center[1]
             z = obstacle.height * np.outer(np.ones(len(u)), v) + obstacle.center[2]
-            ax.plot_surface(x, y, z, color='orange', alpha=0.7)
+            ax.plot_surface(x, y, z, color='green', alpha=alpha[idx])
 
-    # Plot fire zone as filled red area
-    fire_x, fire_y = fire_zone
-    fire_z = np.zeros_like(fire_x)
-    vertices = [list(zip(fire_x, fire_y, fire_z))]
-    fire_zone_polygon = Poly3DCollection(vertices, color='red', alpha=0.3, edgecolor='red')
-    ax.add_collection3d(fire_zone_polygon)
+        # Plot trees inside fire zone (if provided)
+        if fire_zone_trees:
+            for obstacle in fire_zone_trees:
+                u = np.linspace(0, 2 * np.pi, 20)
+                v = np.linspace(0, 1, 10)
+                x = obstacle.radius * np.outer(np.cos(u), np.ones(len(v))) + obstacle.center[0]
+                y = obstacle.radius * np.outer(np.sin(u), np.ones(len(v))) + obstacle.center[1]
+                z = obstacle.height * np.outer(np.ones(len(u)), v) + obstacle.center[2]
+                ax.plot_surface(x, y, z, color='orange', alpha=alpha[idx])
 
-    # Plot start and goal positions
-    ax.scatter(*start_pos, color='blue', s=100, label='Start')
-    ax.scatter(*goal_pos, color='yellow', s=100, label='Goal')
+        # Plot fire zone as filled red area
+        fire_x, fire_y = fire_zone
+        fire_z = np.zeros_like(fire_x)
+        vertices = [list(zip(fire_x, fire_y, fire_z))]
+        fire_zone_polygon = Poly3DCollection(vertices, color='red', alpha=0.4, edgecolor='red')
+        ax.add_collection3d(fire_zone_polygon)
 
+        # Plot start and goal positions
+        ax.scatter(*start_pos, color='blue', s=100, label='Start')
+        ax.scatter(*goal_pos, color='yellow', s=100, label='Goal')
+    
     # plt.legend()
     # plt.show()
-    return fig, ax
+    return fig, ax_tpv, ax_non_tpv
 
-def visualize_forest_2d(space_dim, obstacles, fire_zone, start_pos, goal_pos, fire_zone_trees=None):
+def visualize_forest_2d(space_dim, obstacles, fire_zone, start_pos, goal_pos, fire_zone_trees=None, ax=None):
     """
     Visualize the forest environment in 2D with cylindrical obstacles, fire zone, and start/goal points.
 
@@ -83,9 +92,15 @@ def visualize_forest_2d(space_dim, obstacles, fire_zone, start_pos, goal_pos, fi
         goal_pos (tuple): Goal position of the drone.
         fire_zone_trees (list): Trees inside the fire zone, displayed in orange. (Optional)
     """
-    fig, ax = plt.subplots(figsize=(10, 10))
-    ax.set_xlim(0, space_dim[0])
-    ax.set_ylim(0, space_dim[1])
+    ''' TO BE UNCOMMENTED LATER'''
+    # fig, ax = plt.subplots(figsize=(10, 10))
+    # ax.set_xlim(0, space_dim[0])
+    # ax.set_ylim(0, space_dim[1])
+    
+    ax.grid(False)
+    
+    ax.set_xlim(0, 80)
+    ax.set_ylim(0, 80)
 
     # Plot trees outside fire zone in green
     # for obstacle in obstacles:
@@ -98,7 +113,7 @@ def visualize_forest_2d(space_dim, obstacles, fire_zone, start_pos, goal_pos, fi
     obstacle_patches = [
         plt.Circle(obstacle.center[:2], obstacle.radius) for obstacle in obstacles
     ]
-    obstacle_collection = PatchCollection(obstacle_patches, color='green', alpha=0.4)
+    obstacle_collection = PatchCollection(obstacle_patches, color='green', alpha=0.75)
     ax.add_collection(obstacle_collection)
     
     # Create patches for obstacles inside fire zone (Optimized?)
@@ -106,7 +121,7 @@ def visualize_forest_2d(space_dim, obstacles, fire_zone, start_pos, goal_pos, fi
         fire_patches = [
             plt.Circle(obstacle.center[:2], obstacle.radius) for obstacle in fire_zone_trees
         ]
-        fire_collection = PatchCollection(fire_patches, color='orange', alpha=0.5)
+        fire_collection = PatchCollection(fire_patches, color='orange', alpha=0.75)
         ax.add_collection(fire_collection)
 
     # Plot fire zone boundary
@@ -120,7 +135,7 @@ def visualize_forest_2d(space_dim, obstacles, fire_zone, start_pos, goal_pos, fi
     ax.scatter(start_pos[0], start_pos[1], color='blue', s=100, label='Start')
     ax.scatter(goal_pos[0], goal_pos[1], color='yellow', s=100, label='Goal')
     
-    return fig, ax
+    # return fig, ax
     
 # Implementation
 if __name__ == "__main__":
@@ -136,7 +151,7 @@ if __name__ == "__main__":
     space_dim = (100, 100, 20)
     grid_size = 25  # Define a grid
     radius_range = (0.5, 0.75)
-    height_range = (5.0, 15.0)
+    height_range = (5.0, 8.0)
     zone_center = (50, 50)
     zone_radius = 20
     
@@ -354,12 +369,12 @@ if __name__ == "__main__":
             print("No valid goal position could be determined.")
             exit()
 
-        fig, ax = visualize_forest(space_dim, trees_outside, fire_zone, start_pos, goal_pos, trees_inside)
-        # fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        ax.set_xlim(0, space_dim[0])
-        ax.set_ylim(0, space_dim[1])
-        ax.set_zlim(0, space_dim[2])
+        fig, ax_tpv, ax_non_tpv = visualize_forest(space_dim, trees_outside, fire_zone, start_pos, goal_pos, trees_inside)
+        # fig = plt.show()
+        # ax = fig.add_subplot(111, projection='3d')
+        # ax.set_xlim(0, space_dim[0])
+        # ax.set_ylim(0, space_dim[1])
+        # ax.set_zlim(0, space_dim[2])
         
         start_time = time.perf_counter()
         path, tree = rrt_star(
@@ -377,13 +392,15 @@ if __name__ == "__main__":
             smoothed_path = smooth_path_with_collision_avoidance(path, obstacles, num_points=len(t_ref))
                        
             smoothed_path_x, smoothed_path_y = smoothed_path[:2]
-            smooth_z = np.ones_like(smoothed_path_y) * 5
+            smooth_z = np.ones_like(smoothed_path_y) * 8.5
             
             # Visualize in 2D
             path_x, path_y = zip(*path)
-            ax.plot(path_x, path_y, color='purple', linewidth=2, label='RRT* Path')
-            ax.plot(smoothed_path_x, smoothed_path_y, color='cyan', linestyle='--', linewidth=2, label='Smoothed Path')
             
+            for ax in [ax_non_tpv]:
+                ax.plot(path_x, path_y, color='purple', linewidth=2, label='RRT* Path')
+                ax.plot(smoothed_path_x, smoothed_path_y, color='cyan', linestyle='--', linewidth=2, label='Smoothed Path')
+                
             
             traj_ref = trajectory_reference(
                 constants, t_ref, x=smoothed_path_x, y=smoothed_path_y, z=smooth_z
@@ -391,7 +408,7 @@ if __name__ == "__main__":
             
             states_total, t0, _ = controller.mpc_controller(t_ref, 0, tf, traj_ref, start_pos, constants)
             _, _, _, t = controller.plot_mpc_results_3d(
-                constants, states_total, t0, tf, ax, "3d_Quad", t_ref=t_ref, 
+                constants, states_total, t0, tf, ax_tpv, ax_non_tpv, "3d_Quad", t_ref=t_ref, 
                 x=smoothed_path_x, y=smoothed_path_y, z=smooth_z)
             
             # Generate extinguishing path points
@@ -405,18 +422,18 @@ if __name__ == "__main__":
             extinguishing_path = generate_extinguishing_path(fire_zone, step_size=0.5, inward_translation=0.5)
             if extinguishing_path:
                 ext_x, ext_y = zip(*extinguishing_path)
-                ax.plot(ext_x, ext_y, color='orange', linewidth=1, linestyle='-', label='Extinguishing Path')
+                for ax in [ax_tpv, ax_non_tpv]:
+                    ax.plot(ext_x, ext_y, color='orange', linewidth=1, linestyle='-', label='Extinguishing Path')
             
             
             # Smooth the path
             smoothed_path = smooth_path_with_collision_avoidance(path, obstacles, num_points=len(t))
                        
             smoothed_path_x, smoothed_path_y = smoothed_path[:2]
-            smooth_z = np.ones_like(smoothed_path_y) * 5
+            smooth_z = np.ones_like(smoothed_path_y) * 8.5
             
             # Animate the quadrotor
-            Animation().animate_quadrotor(ax, constants, states_total, t, ax.get_xlim(), 
-                                          ax.get_ylim(), ax.get_zlim(),
+            Animation().animate_quadrotor(fig, ax_tpv, ax_non_tpv, constants, states_total, t,
                                           xr=smoothed_path_x, yr=smoothed_path_y, zr=smooth_z)
         
         else:
@@ -425,6 +442,6 @@ if __name__ == "__main__":
         # Plot RRT attempts
         # plot_rrt_attempts(ax, tree, dim=2)
             
-    plt.legend()
-    plt.gca().set_aspect('equal', adjustable='box')
-    plt.show()
+    # plt.legend()
+    # plt.gca().set_aspect('equal', adjustable='box')
+    # plt.show()

@@ -172,7 +172,8 @@ def plot_ref_trajectory(constants, t, ax, r=2, f=0.025, height_i=2, height_f=5,
     # Plot the trajectory
     # fig = plt.figure()
     # ax = fig.add_subplot(111, projection='3d')
-    ax.plot3D(x_vals, y_vals, z_vals, label="Reference Trajectory", color="blue")
+    
+    ax.plot(x_vals, y_vals, z_vals, label="Reference Trajectory", color="blue")
     
 
 def plot_ref_trajectory_with_arrows(t, r, f, height_i, height_f, 
