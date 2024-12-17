@@ -103,6 +103,7 @@ def rrt_star(
         return sum(distance(path[i], path[i + 1]) for i in range(len(path) - 1))
 
     print(f"Starting RRT* with {retries} retries in {dim}D space...")
+    start_pos, goal_pos = start_pos[:dim], goal_pos[:dim]
 
     for retry in range(retries):
         start_node = Node(start_pos)

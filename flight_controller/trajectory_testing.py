@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-from init_constants import Quad_Constants
+from flight_controller.init_constants import Quad_Constants
 
 def trajectory_reference(constants, t, r=2, f=0.025, height_i=2, height_f=5, x=None, y=None, z=None):
     """
@@ -29,33 +29,34 @@ def trajectory_reference(constants, t, r=2, f=0.025, height_i=2, height_f=5, x=N
     """
     Ts = constants.Ts
     innerDyn_length = constants.innerDyn_length
-    trajectory = constants.trajectory
+    trajectory = 0 #constants.trajectory
 
     alpha = 2 * np.pi * f * t
     d_height = height_f - height_i
 
     # Compute trajectories based on the selected trajectory
     if trajectory == 1:
+        print(f"Whoops: {x,y,z}")
         x = 1.5 * t / 10 + 1 + 3 * np.cos(t / 5)
         y = 1.5 * t / 10 - 2 + 3 * np.sin(t / 5)
         z = height_i + (d_height / t[-1]) * t + 4 * np.sin(0.3 * t)
 
-    elif trajectory == 2:
+    elif trajectory == 2 and (x, y, z == None, None, None):
         x = (r / 10 * t + 2) * np.cos(alpha + t / 5)
         y = (r / 10 * t + 2) * np.sin(alpha + t / 5)
         z = height_i + (d_height / t[-1]) * t * np.sin(t / 5)
 
-    elif trajectory == 3:
+    elif trajectory == 3 and (x, y, z == None, None, None):
         x = 2 * t / 20 + 1 + np.cos(t / 2)
         y = 2 * t / 20 - 2 + np.sin(t / 2)
         z = height_i + (d_height / t[-1]) * t + 10 * np.sin(0.3 * t)
 
-    elif trajectory == 4:
+    elif trajectory == 4 and (x, y, z == None, None, None):
         x = -4 * t / 20 + 1 + np.cos(t / 4)
         y = 2 * t / 20 - 2 + np.sin(t / 4)
         z = height_i + (d_height / t[-1]) * t + 5 * np.sin(0.3 * t)
-    else:
-        raise ValueError("Unknown trajectory type.")
+    # else:
+    #     print("Using custom trajectory")
 
     # Compute derivatives using the same finite difference approach as MATLAB
     # The MATLAB code:
@@ -125,8 +126,6 @@ def trajectory_reference(constants, t, r=2, f=0.025, height_i=2, height_f=5, x=N
 
     psiInt = np.round(psiInt, 8)
 
-    # Construct output arrays
-    # Each should be shaped as (len(t), 2): column 0 = t, column 1 = trajectory
     X_ref = np.column_stack((t, x))
     X_dot_ref = np.column_stack((t, x_dot))
     X_dot_dot_ref = np.column_stack((t, x_dot_dot))
@@ -146,7 +145,9 @@ def trajectory_reference(constants, t, r=2, f=0.025, height_i=2, height_f=5, x=N
             Z_ref, Z_dot_ref, Z_dot_dot_ref, psi_ref])
 
 
-def plot_ref_trajectory(constants, t, ax, r=2, f=0.025, height_i=2, height_f=5):
+def plot_ref_trajectory(constants, t, ax, r=2, f=0.025, height_i=2, height_f=5,
+                        x=None, y=None, z=None
+):
     """
     Plots the reference trajectory on the given 3D axes.
 
@@ -159,7 +160,9 @@ def plot_ref_trajectory(constants, t, ax, r=2, f=0.025, height_i=2, height_f=5):
     # Call trajectory_reference once with the whole time_points array
     (X_ref, X_dot_ref, X_dot_dot_ref, 
      Y_ref, Y_dot_ref, Y_dot_dot_ref,
-     Z_ref, Z_dot_ref, Z_dot_dot_ref, psi_ref) = trajectory_reference(constants, t)
+     Z_ref, Z_dot_ref, Z_dot_dot_ref, 
+     psi_ref) = traj_ref = trajectory_reference(
+                constants, t, x=x, y=y, z=z)
 
     # Extract trajectory data
     x_vals = X_ref[:,1]
@@ -177,7 +180,8 @@ def plot_ref_trajectory_with_arrows(t, r, f, height_i, height_f,
     # Call trajectory_reference once with the whole time_points array
     (X_ref, X_dot_ref, X_dot_dot_ref, 
      Y_ref, Y_dot_ref, Y_dot_dot_ref,
-     Z_ref, Z_dot_ref, Z_dot_dot_ref, psi_ref) = trajectory_reference(constants, t)
+     Z_ref, Z_dot_ref, Z_dot_dot_ref, 
+     psi_ref) = trajectory_reference(constants, t)
 
     # Extract trajectory data
     x_vals = X_ref[:,1]

@@ -64,7 +64,7 @@ def smooth_path_with_collision_avoidance(path, obstacles, num_points=200, smooth
     return np.array(x_final), np.array(y_final)
 
 
-def smooth_path_discretized(smooth_path, avg_vel=None, tf=None, max_avg_vel=2.0):
+def smooth_path_discretized(smooth_path, avg_vel=None, tf=None, max_avg_vel=0.25):
     """
     Generates the total length, segment lengths, and time duration for the smooth path.
     

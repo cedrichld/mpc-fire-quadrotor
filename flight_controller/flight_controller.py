@@ -3,14 +3,14 @@ from scipy.integrate import solve_ivp
 from pydrake.solvers import MathematicalProgram, OsqpSolver
 import pydrake.symbolic as sym
 import matplotlib.pyplot as plt
-from create_animation import Animation
+from flight_controller.create_animation import Animation
 
-from init_constants import Quad_Constants
-from MPC_controller import MPC, U_to_omega
-from LPV import LPV
-from full_dynamics import full_dynamics
-from trajectory_testing import trajectory_reference, plot_ref_trajectory
-from position_controller import feedback_linearization
+from flight_controller.init_constants import Quad_Constants
+from flight_controller.MPC_controller import MPC, U_to_omega
+from flight_controller.LPV import LPV
+from flight_controller.full_dynamics import full_dynamics
+from flight_controller.trajectory_testing import trajectory_reference, plot_ref_trajectory
+from flight_controller.position_controller import feedback_linearization
 
 # Quadrotor Configuration:
 # 
@@ -23,19 +23,18 @@ from position_controller import feedback_linearization
 #
 
 class Flight_Controller(object):
-    constants = Quad_Constants()
         
-    def time_conversion(self, t0, tf):
+    def time_conversion(self, t0, tf, constants):
         t = np.linspace(t0, tf, (int)(tf / (constants.Ts * constants.innerDyn_length)))
         return t
     
-    def mpc_controller(self, t, traj_ref):
+    def mpc_controller(self, t, t0, tf, traj_ref, xyz, constants):
         
         Ts = constants.Ts
         controlled_states = constants.controlled_states # number of controlled states in this script
         innerDyn_length = constants.innerDyn_length     # number of inner loop iterations
         hz = constants.hz                               # horizon period
-        integral_steps = 80 #80
+        integral_steps = 20 #80
 
         total_innerDyn = (len(t) * innerDyn_length)
         dt = 1 / total_innerDyn
@@ -63,6 +62,7 @@ class Flight_Controller(object):
         # Initial states
         zeros = [0] * 11  # Creates a list of 11 zeros
         ut, vt, wt, pt, qt, rt, xt, yt, zt, phit, thetat = zeros
+        xt, yt, zt = xyz[0], xyz[1], xyz[2]
 
         
         psit = psi_ref[0,1]
@@ -229,92 +229,95 @@ class Flight_Controller(object):
         
         return states_total, t0, tf
 
-def plot_results_3d(constants, zeta, t0, tf, name):
-    """
-    Plots the trajectory and control inputs of the 3D quadrotor.
-    """
-    
+    def plot_mpc_results_3d(self, constants, zeta, t0, tf, ax, name,
+                            t_ref=0, x=None, y=None, z=None
+    ):
+        """
+        Plots the trajectory and control inputs of the 3D quadrotor.
+        """
+        
 
-    '''
-    # Define design parameters
-    D2R = np.pi/180
-    R2D = 180/np.pi
-    b = 0.6 # length of total square cover by whole quad body
-    a = b/3 # length of  a small square base of quad (b/4)
-    H = 0.06 # height of drone in z direction
-    H_m = H + H/2 # height of motors in Z direction
-    r_p = b/4
+        '''
+        # Define design parameters
+        D2R = np.pi/180
+        R2D = 180/np.pi
+        b = 0.6 # length of total square cover by whole quad body
+        a = b/3 # length of  a small square base of quad (b/4)
+        H = 0.06 # height of drone in z direction
+        H_m = H + H/2 # height of motors in Z direction
+        r_p = b/4
 
-    ro = 45*D2R
-    Ri = np.array([
-        [np.cos(ro), -np.sin(ro), 0],
-        [np.sin(ro),  np.cos(ro), 0],
-        [0,           0,          1]
-    ])
-    base_co = np.array([[-a/2, a/2,  a/2, -a/2],
-                        [-a/2,-a/2,  a/2,  a/2],
-                        [   0,   0,    0,    0]])
-    base = Ri @ base_co
-    to = np.linspace(0, 2*np.pi)
-    xp = r_p*np.cos(to)
-    yp = r_p*np.sin(to)
-    zp = np.zeros(len(to))
-    '''
-    
-    
-    # TRAJECTORY
-    plt.figure()
-    ax = plt.axes(projection='3d')
-    
-    # np.array([ut, vt, wt, pt, qt, rt, xt, yt, zt, phit, thetat, psit])
-    ax.plot3D(zeta[:, 6], zeta[:, 7], zeta[:, 8], 'r--', lw=1, label="Trajectory")
-    ax.scatter(zeta[0, 6], zeta[0, 7], zeta[0, 8], color='red', label="Start")
-    # print(f"Start: {zeta[0, 6], zeta[0, 7], zeta[0, 8]}")
-    ax.scatter(zeta[-1, 6], zeta[-1, 7], zeta[-1, 8], color='green', label="End")
-    # print(f"End: {zeta[-1, 6], zeta[-1, 7], zeta[-1, 8]}")
+        ro = 45*D2R
+        Ri = np.array([
+            [np.cos(ro), -np.sin(ro), 0],
+            [np.sin(ro),  np.cos(ro), 0],
+            [0,           0,          1]
+        ])
+        base_co = np.array([[-a/2, a/2,  a/2, -a/2],
+                            [-a/2,-a/2,  a/2,  a/2],
+                            [   0,   0,    0,    0]])
+        base = Ri @ base_co
+        to = np.linspace(0, 2*np.pi)
+        xp = r_p*np.cos(to)
+        yp = r_p*np.sin(to)
+        zp = np.zeros(len(to))
+        '''
+        
+        
+        # TRAJECTORY
+        # plt.figure()
+        # ax = plt.axes(projection='3d')
+        
+        # np.array([ut, vt, wt, pt, qt, rt, xt, yt, zt, phit, thetat, psit])
+        ax.plot3D(zeta[:, 6], zeta[:, 7], zeta[:, 8], 'r--', lw=1, label="Trajectory")
+        ax.scatter(zeta[0, 6], zeta[0, 7], zeta[0, 8], color='red', label="Start")
+        # print(f"Start: {zeta[0, 6], zeta[0, 7], zeta[0, 8]}")
+        ax.scatter(zeta[-1, 6], zeta[-1, 7], zeta[-1, 8], color='green', label="End")
+        # print(f"End: {zeta[-1, 6], zeta[-1, 7], zeta[-1, 8]}")
+        
+             
+        plot_ref_trajectory(constants, t_ref, ax, x=x, y=y, z=z)
+        t_ref = np.linspace(t0, tf, len(zeta[:,0]))
 
-    t_ref = np.linspace(t0, tf, len(zeta[:,0]))
-    plot_ref_trajectory(constants, t_ref, ax)
+        ax.set_xlabel("X (m)")
+        ax.set_ylabel("Y (m)")
+        ax.set_zlabel("Z (m)")
+        # ax.legend()
+        # ax.set_title(f"3D Trajectory ({name})")
+        # Retrieve limits
+        x_limits = ax.get_xlim()
+        y_limits = ax.get_ylim()
+        z_limits = ax.get_zlim()
+        # plt.savefig(f"{name}_trajectory.png") 
+        # print(f"Saved trajectory plot as {name}_trajectory.png\n")
+        # plt.show()
+        
+        
 
-    ax.set_xlabel("X (m)")
-    ax.set_ylabel("Y (m)")
-    ax.set_zlabel("Z (m)")
-    ax.legend()
-    ax.set_title(f"3D Trajectory ({name})")
-    # Retrieve limits
-    x_limits = ax.get_xlim()
-    y_limits = ax.get_ylim()
-    z_limits = ax.get_zlim()
-    plt.savefig(f"{name}_trajectory.png") 
-    print(f"Saved trajectory plot as {name}_trajectory.png\n")
-    plt.show()
-    
-    
+        # # ANGLES
+        # plt.figure()
+        # plt.plot(t[1:], zeta[1:, 3], label="Phi")
+        # plt.plot(t[1:], zeta[1:, 4], label="Theta")
+        # plt.plot(t[1:], zeta[1:, 5], label="Psi")
+        # plt.xlabel("Time (s)")
+        # plt.ylabel("Angles (rad)")
+        # plt.title(f"Angles over time ({name})")
+        # plt.legend()
+        # # plt.show()
+        # plt.savefig(f"{name}_angles.png")
+        # print(f"Saved angles plot as {name}_angles.png")
 
-    # # ANGLES
-    # plt.figure()
-    # plt.plot(t[1:], zeta[1:, 3], label="Phi")
-    # plt.plot(t[1:], zeta[1:, 4], label="Theta")
-    # plt.plot(t[1:], zeta[1:, 5], label="Psi")
-    # plt.xlabel("Time (s)")
-    # plt.ylabel("Angles (rad)")
-    # plt.title(f"Angles over time ({name})")
-    # plt.legend()
-    # # plt.show()
-    # plt.savefig(f"{name}_angles.png")
-    # print(f"Saved angles plot as {name}_angles.png")
+        # plt.figure()
+        # plt.plot(t[1:], omega[1:])
+        # plt.xlabel("Time (s)")
+        # plt.ylabel("Control Inputs (rad/s)")
+        # plt.title(f"Control Inputs ({name})")
+        # plt.legend([f"omega{i+1}" for i in range(omega.shape[1])])
+        # # plt.show()
+        # plt.savefig(f"{name}_inputs.png")
+        # print(f"Saved input plot as {name}_inputs.png")
 
-    # plt.figure()
-    # plt.plot(t[1:], omega[1:])
-    # plt.xlabel("Time (s)")
-    # plt.ylabel("Control Inputs (rad/s)")
-    # plt.title(f"Control Inputs ({name})")
-    # plt.legend([f"omega{i+1}" for i in range(omega.shape[1])])
-    # # plt.show()
-    # plt.savefig(f"{name}_inputs.png")
-    # print(f"Saved input plot as {name}_inputs.png")
-
-    return x_limits, y_limits, z_limits, t_ref
+        return x_limits, y_limits, z_limits, t_ref
 
 def fcn():
     constants = Quad_Constants()
@@ -323,11 +326,11 @@ def fcn():
     t0 = 0
     tf = 100
     
-    t = controller.time_conversion(t0, tf)
+    t = controller.time_conversion(t0, tf, constants)
     traj_ref = trajectory_reference(constants, t)
     
-    states_total, t0, tf = controller.mpc_controller(t, traj_ref)
-    x_limits, y_limits, z_limits, t = plot_results_3d(constants, states_total, t0, tf, "3d_Quad")
+    states_total, t0, tf = controller.mpc_controller(t, traj_ref, constants)
+    x_limits, y_limits, z_limits, t = controller.plot_mpc_results_3d(constants, states_total, t0, tf, "3d_Quad")
     
     # Animate the quadrotor
     Animation().animate_quadrotor(constants, states_total, t, x_limits, y_limits, z_limits)
@@ -340,11 +343,11 @@ if __name__ == "__main__":
     t0 = 0
     tf = 100
     
-    t = controller.time_conversion(t0, tf)
+    t = controller.time_conversion(t0, tf, constants)
     traj_ref = trajectory_reference(constants, t)
     
-    states_total, t0, tf = controller.mpc_controller(t, traj_ref)
-    x_limits, y_limits, z_limits, t = plot_results_3d(constants, states_total, t0, tf, "3d_Quad")
+    states_total, t0, tf = controller.mpc_controller(t, traj_ref, [0,0,0], constants)
+    x_limits, y_limits, z_limits, t = controller.plot_mpc_results_3d(constants, states_total, t0, tf, "3d_Quad")
     
     # Animate the quadrotor
     Animation().animate_quadrotor(constants, states_total, t, x_limits, y_limits, z_limits)

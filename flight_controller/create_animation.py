@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 
-from trajectory_testing import trajectory_reference, plot_ref_trajectory
+from flight_controller.trajectory_testing import trajectory_reference, plot_ref_trajectory
 
 class Animation:
     def __init__(self):
@@ -21,14 +21,17 @@ class Animation:
         ]).T
         return R @ motor_offsets + np.array([[X], [Y], [Z]])
         
-    
-    def animate_quadrotor(self, constants, x, t, x_limits, y_limits, z_limits):
+    def animate_quadrotor(self, previous_ax, constants, x, t, x_limits, y_limits, z_limits,
+                          xr=None, yr=None, zr=None):
         """
         Animates the quadrotor's 3D trajectory and its body frame.
         """
         fig = plt.figure(figsize=(20, 9), dpi=150)
+        # _, ax_tpv = visualize_forest_2d(space_dim, trees_outside, fire_zone, start_pos, goal_pos, trees_inside)
         ax_tpv = fig.add_subplot(121, projection='3d')
+        # ax_tpv = previous_ax
         ax_non_tpv = fig.add_subplot(122, projection='3d')
+        # ax_non_tpv = previous_ax
         
         # 2. Adjust subplot parameters for better spacing ###
         plt.subplots_adjust(left=0.05, right=0.95, bottom=0.05, top=0.95, wspace=0.3, hspace=0.2)
@@ -58,7 +61,7 @@ class Animation:
         ax_tpv.set_xlim([camera_pos_x_i - view_range, camera_pos_x_i + view_range])
         ax_tpv.set_ylim([camera_pos_y_i - view_range, camera_pos_y_i + view_range])
         ax_tpv.set_zlim([camera_pos_z_i - view_range, camera_pos_z_i + view_range])
-        ax_tpv.view_init(elev=fixed_elev, azim=smoothed_azim)  # Fixed viewpoint
+        ax_tpv.view_init(elev=fixed_elev, azim=smoothed_azim+45)  # Fixed viewpoint
         
         ax_non_tpv.set_zlim(x_limits)
         ax_non_tpv.set_ylim(y_limits)
@@ -93,8 +96,9 @@ class Animation:
                                                 ha='left', va='top', fontsize=12, color='blue')  # Increased font size
             
             # Plot reference trajectory on both subplots
-            plot_ref_trajectory(constants, t, ax_tpv)
-            plot_ref_trajectory(constants, t, ax_non_tpv)
+            plot_ref_trajectory(constants, t, ax_tpv, x=xr, y=yr, z=zr)
+            plot_ref_trajectory(constants, t, ax_non_tpv, x=xr, y=yr, z=zr)
+            
         
         def angle_diff(desired, current):
             """Compute minimal difference between two angles."""
@@ -121,7 +125,7 @@ class Animation:
             smoothed_azim = (smoothed_azim + alpha * delta_azim) % 360
             
             # Update view angles
-            ax_tpv.view_init(elev=fixed_elev, azim=smoothed_azim)
+            ax_tpv.view_init(elev=fixed_elev, azim=smoothed_azim+45)
                 
             # Compute camera position based on smoothed azimuth and camera_offset_body
             smoothed_azim_rad = np.radians(smoothed_azim)
@@ -142,7 +146,9 @@ class Animation:
             (X_ref, X_dot_ref, X_dot_dot_ref,
             Y_ref, Y_dot_ref, Y_dot_dot_ref,
             Z_ref, Z_dot_ref, Z_dot_dot_ref,
-            psi_ref) = trajectory_reference(constants, t)
+            psi_ref) = traj_ref = trajectory_reference(
+                constants, t, x=xr, y=yr, z=zr
+            )
 
             # Extract position references (second column)
             x_positions = X_ref[:,1]

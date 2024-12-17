@@ -15,6 +15,9 @@ from smooth_path import *
 from path_points_generation import *
 
 from flight_controller.flight_controller import Flight_Controller
+from flight_controller.flight_controller import Quad_Constants
+from flight_controller.flight_controller import trajectory_reference
+from flight_controller.flight_controller import Animation
 
 def visualize_forest(space_dim, obstacles, fire_zone, start_pos, goal_pos, fire_zone_trees=None):
     """
@@ -64,8 +67,9 @@ def visualize_forest(space_dim, obstacles, fire_zone, start_pos, goal_pos, fire_
     ax.scatter(*start_pos, color='blue', s=100, label='Start')
     ax.scatter(*goal_pos, color='yellow', s=100, label='Goal')
 
-    plt.legend()
-    plt.show()
+    # plt.legend()
+    # plt.show()
+    return fig, ax
 
 def visualize_forest_2d(space_dim, obstacles, fire_zone, start_pos, goal_pos, fire_zone_trees=None):
     """
@@ -97,16 +101,6 @@ def visualize_forest_2d(space_dim, obstacles, fire_zone, start_pos, goal_pos, fi
     obstacle_collection = PatchCollection(obstacle_patches, color='green', alpha=0.4)
     ax.add_collection(obstacle_collection)
     
-
-    # Plot trees inside fire zone in orange
-    # if fire_zone_trees:
-    #     for obstacle in fire_zone_trees:
-    #         circle = plt.Circle(
-    #             obstacle.center[:2], obstacle.radius, color='orange', alpha=0.7
-    #         )
-    #         ax.add_patch(circle)
-
-
     # Create patches for obstacles inside fire zone (Optimized?)
     if fire_zone_trees:
         fire_patches = [
@@ -132,17 +126,19 @@ def visualize_forest_2d(space_dim, obstacles, fire_zone, start_pos, goal_pos, fi
 if __name__ == "__main__":
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Visualize forest environment for path planning.")
-    parser.add_argument("mode", choices=["2d", "3d", "rrt_star_2d"], 
-        help="Visualization mode: '2d' for 2D visualization, '3d' for 3D visualization, 'a_star' for pathfinding.")
+    parser.add_argument("mode", choices=["2d", "3d", "rrt_star_2d", "mpc"], 
+        help="Visualization mode: '2d' for 2D visualization, '3d' for 3D visualization, 'rrt_star_2d' for pathfinding, 'mpc' for quadcontrol.")
+    # parser.add_argument("mode2", choices=["100%", "traj"],
+    #     help="Representation mode2: '100%' everything, 'traj' for trajectory only.")
     args = parser.parse_args()
 
     # Define 3D space dimensions and parameters
-    space_dim = (50, 50, 20)
+    space_dim = (100, 100, 20)
     grid_size = 25  # Define a grid
-    radius_range = (0.1, 0.25)
+    radius_range = (0.5, 0.75)
     height_range = (5.0, 15.0)
-    zone_center = (25, 25)
-    zone_radius = 10
+    zone_center = (50, 50)
+    zone_radius = 20
     
     # Generate fire zone
     fire_zone = generate_fire_zone(center=zone_center, size=zone_radius)
@@ -196,54 +192,54 @@ if __name__ == "__main__":
         plt.gca().set_aspect('equal', adjustable='box')
         plt.show()
 
-    # ## A*
-    # elif args.mode == "a_star_2d":
-    #     # Combine trees for obstacle input
-    #     obstacles = trees_outside + trees_inside
+    ## A*
+    elif args.mode == "a_star_2d":
+        # Combine trees for obstacle input
+        obstacles = trees_outside + trees_inside
         
-    #     # Run A* Pathfinding
-    #     print("\n=== A* Pathfinding ===")
+        # Run A* Pathfinding
+        print("\n=== A* Pathfinding ===")
 
-    #     # Adjust goal position if it is in collision
-    #     adjusted_goal_pos = adjust_goal_position_smoothly(
-    #         goal_pos[:2], obstacles, inflation=0.05, step_size=0.5, max_attempts=50
-    #     )
+        # Adjust goal position if it is in collision
+        adjusted_goal_pos = adjust_goal_position_smoothly(
+            goal_pos[:2], obstacles, inflation=0.05, step_size=0.5, max_attempts=50
+        )
         
-    #     if adjusted_goal_pos is None:
-    #         print("No valid goal position could be determined.")
-    #         exit()
-    #     goal_pos = (*adjusted_goal_pos, 0)
+        if adjusted_goal_pos is None:
+            print("No valid goal position could be determined.")
+            exit()
+        goal_pos = (*adjusted_goal_pos, 0)
         
-    #     visualize_forest_2d(space_dim[:2], trees_outside, fire_zone, start_pos, goal_pos, trees_inside)
+        visualize_forest_2d(space_dim[:2], trees_outside, fire_zone, start_pos, goal_pos, trees_inside)
         
-    #     start_time = time.perf_counter()
-    #     path, visited_positions = a_star_2d(start_pos[:2], goal_pos[:2], obstacles, space_dim[:2], eps=0.5)
-    #     end_time = time.perf_counter()
-    #     elapsed_time = (end_time - start_time) * 1000
+        start_time = time.perf_counter()
+        path, visited_positions = a_star_2d(start_pos[:2], goal_pos[:2], obstacles, space_dim[:2], eps=0.5)
+        end_time = time.perf_counter()
+        elapsed_time = (end_time - start_time) * 1000
 
-    #     if path:
-    #         path_cost = sum(np.linalg.norm(np.array(path[i]) - np.array(path[i + 1])) for i in range(len(path) - 1))
-    #         print(f"A* Path found in {elapsed_time:.2f} ms with cost {path_cost:.2f}")
+        if path:
+            path_cost = sum(np.linalg.norm(np.array(path[i]) - np.array(path[i + 1])) for i in range(len(path) - 1))
+            print(f"A* Path found in {elapsed_time:.2f} ms with cost {path_cost:.2f}")
 
-    #         # Smooth the path
-    #         smoothed_path = smooth_path_with_collision_avoidance(path, obstacles)
-    #         smoothed_path_x, smoothed_path_y = smoothed_path[:2]
+            # Smooth the path
+            smoothed_path = smooth_path_with_collision_avoidance(path, obstacles)
+            smoothed_path_x, smoothed_path_y = smoothed_path[:2]
 
-    #         # Visualize in 2D
-    #         fig, ax = plt.subplots(figsize=(10, 10))
-    #         ax.set_xlim(0, space_dim[0])
-    #         ax.set_ylim(0, space_dim[1])
+            # Visualize in 2D
+            fig, ax = plt.subplots(figsize=(10, 10))
+            ax.set_xlim(0, space_dim[0])
+            ax.set_ylim(0, space_dim[1])
 
             
-    #         path_x, path_y = zip(*path)
-    #         ax.plot(path_x, path_y, color='purple', linewidth=2, label='A* Path')
+            path_x, path_y = zip(*path)
+            ax.plot(path_x, path_y, color='purple', linewidth=2, label='A* Path')
 
-    #         # Smoothed path
-    #         ax.plot(smoothed_path_x, smoothed_path_y, color='cyan', linestyle='--', linewidth=2, label='Smoothed Path')
-    #     else:
-    #         print(f"A* failed to find a path in {elapsed_time:.2f} ms.")
+            # Smoothed path
+            ax.plot(smoothed_path_x, smoothed_path_y, color='cyan', linestyle='--', linewidth=2, label='Smoothed Path')
+        else:
+            print(f"A* failed to find a path in {elapsed_time:.2f} ms.")
     
-    ## RRT*
+    # RRT*
     elif args.mode == "rrt_star_2d":
         # Combine trees for obstacle input
         obstacles = trees_outside + trees_inside
@@ -329,6 +325,100 @@ if __name__ == "__main__":
                 ext_x, ext_y = zip(*extinguishing_path)
                 ax.plot(ext_x, ext_y, color='orange', linewidth=1, linestyle='-', label='Extinguishing Path')
                 
+        else:
+            print(f"RRT* failed to find a path in {elapsed_time:.2f} ms.")
+        
+        # Plot RRT attempts
+        # plot_rrt_attempts(ax, tree, dim=2)
+    
+    # MPC and RRT*
+    elif args.mode == "mpc":
+        # Combine trees for obstacle input
+        obstacles = trees_outside + trees_inside
+        
+        constants = Quad_Constants()
+        controller = Flight_Controller()
+        
+        tf = 100
+        t_ref = controller.time_conversion(0, tf, constants)
+
+        # Run RRT* Pathfinding
+        print("\n=== RRT* Pathfinding with MPC ===")
+        
+        # Adjust goal position if it is in collision
+        adjusted_goal_pos = adjust_goal_position_smoothly(
+            goal_pos, obstacles, 0.05, dim=3, step_size=0.5, max_attempts=50
+        )
+        
+        if adjusted_goal_pos is None:
+            print("No valid goal position could be determined.")
+            exit()
+
+        fig, ax = visualize_forest(space_dim, trees_outside, fire_zone, start_pos, goal_pos, trees_inside)
+        # fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.set_xlim(0, space_dim[0])
+        ax.set_ylim(0, space_dim[1])
+        ax.set_zlim(0, space_dim[2])
+        
+        start_time = time.perf_counter()
+        path, tree = rrt_star(
+            start_pos, goal_pos, obstacles, space_dim, dim=2
+        )
+
+        end_time = time.perf_counter()
+        elapsed_time = (end_time - start_time) * 1000
+
+        if path:
+            path_cost = sum(np.linalg.norm(np.array(path[i]) - np.array(path[i + 1])) for i in range(len(path) - 1))
+            print(f"RRT* Path found in {elapsed_time:.2f} ms with cost {path_cost:.2f}")
+
+            # Smooth the path
+            smoothed_path = smooth_path_with_collision_avoidance(path, obstacles, num_points=len(t_ref))
+                       
+            smoothed_path_x, smoothed_path_y = smoothed_path[:2]
+            smooth_z = np.ones_like(smoothed_path_y) * 5
+            
+            # Visualize in 2D
+            path_x, path_y = zip(*path)
+            ax.plot(path_x, path_y, color='purple', linewidth=2, label='RRT* Path')
+            ax.plot(smoothed_path_x, smoothed_path_y, color='cyan', linestyle='--', linewidth=2, label='Smoothed Path')
+            
+            
+            traj_ref = trajectory_reference(
+                constants, t_ref, x=smoothed_path_x, y=smoothed_path_y, z=smooth_z
+            )
+            
+            states_total, t0, _ = controller.mpc_controller(t_ref, 0, tf, traj_ref, start_pos, constants)
+            _, _, _, t = controller.plot_mpc_results_3d(
+                constants, states_total, t0, tf, ax, "3d_Quad", t_ref=t_ref, 
+                x=smoothed_path_x, y=smoothed_path_y, z=smooth_z)
+            
+            # Generate extinguishing path points
+            extinguishing_path = []
+            for i in range(len(smoothed_path_x)):
+                point = (smoothed_path_x[i], smoothed_path_y[i])
+                if is_point_in_fire_zone(fire_zone, point):
+                    extinguishing_path.append(point)
+                    
+            # Generate and visualize extinguishing path
+            extinguishing_path = generate_extinguishing_path(fire_zone, step_size=0.5, inward_translation=0.5)
+            if extinguishing_path:
+                ext_x, ext_y = zip(*extinguishing_path)
+                ax.plot(ext_x, ext_y, color='orange', linewidth=1, linestyle='-', label='Extinguishing Path')
+            
+            
+            # Smooth the path
+            smoothed_path = smooth_path_with_collision_avoidance(path, obstacles, num_points=len(t))
+                       
+            smoothed_path_x, smoothed_path_y = smoothed_path[:2]
+            smooth_z = np.ones_like(smoothed_path_y) * 5
+            
+            # Animate the quadrotor
+            Animation().animate_quadrotor(ax, constants, states_total, t, ax.get_xlim(), 
+                                          ax.get_ylim(), ax.get_zlim(),
+                                          xr=smoothed_path_x, yr=smoothed_path_y, zr=smooth_z)
+        
         else:
             print(f"RRT* failed to find a path in {elapsed_time:.2f} ms.")
         
