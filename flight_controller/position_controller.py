@@ -5,15 +5,14 @@ def feedback_linearization(X_ref, X_dot_ref, X_dot_dot_ref,
                            Z_ref, Z_dot_ref, Z_dot_dot_ref,
                            Psi_ref, states, constants):
     """
-    Python version of the MATLAB Feedback_Linearization function.
-
+    Feedback Linearization.
     Parameters:
     - X_ref, X_dot_ref, X_dot_dot_ref
     - Y_ref, Y_dot_ref, Y_dot_dot_ref
     - Z_ref, Z_dot_ref, Z_dot_dot_ref
     - Psi_ref: desired yaw angle
     - states: current state vector [u, v, w, p, q, r, x, y, z, phi, theta, psi]
-    - constants: dictionary or class with required constants {m, g, px, py, pz}
+    - constants: constants
 
     Returns:
     - Phi_ref: Desired roll angle

@@ -1,16 +1,20 @@
 import numpy as np
 from scipy.integrate import solve_ivp
+import matplotlib.pyplot as plt
+
+# Make sure to set up a virtual env with necessary libraries (np, matplotlib, etc.)
 from pydrake.solvers import MathematicalProgram, OsqpSolver
 import pydrake.symbolic as sym
-import matplotlib.pyplot as plt
-from flight_controller.create_animation import Animation
 
-from flight_controller.init_constants import Quad_Constants
-from flight_controller.MPC_controller import MPC, U_to_omega
-from flight_controller.LPV import LPV
-from flight_controller.full_dynamics import full_dynamics
-from flight_controller.trajectory_testing import trajectory_reference, plot_ref_trajectory
-from flight_controller.position_controller import feedback_linearization
+
+from .init_quad_constants import Quad_Constants
+from .MPC_controller import MPC, U_to_omega
+from .LPV import LPV
+from .full_dynamics import full_dynamics
+from .trajectory_reference import trajectory_reference, plot_ref_trajectory
+from .position_controller import feedback_linearization
+
+from scripts.create_animation import Animation
 
 # Quadrotor Configuration:
 # 
@@ -25,39 +29,33 @@ from flight_controller.position_controller import feedback_linearization
 class Flight_Controller(object):
         
     def time_conversion(self, t0, tf, constants):
-        t = np.linspace(t0, tf, (int)(tf / (constants.Ts * constants.innerDyn_length)))
+        t = np.linspace(t0, tf, (int)(tf / (constants.Ts * constants.inner_loop)))
         return t
     
     def mpc_controller(self, t, t0, tf, traj_ref, xyz, constants):
-        
+        '''
+        Inner and outer loop:
+        - Outer loop calculates phi_ref, theta_ref abd U1 based on feedback_linearization (at a lower frequency)
+        - Inner loop calculates U2, U3, U4 based on the MPC and the previous feedback_linearization
+        '''
         Ts = constants.Ts
         controlled_states = constants.controlled_states # number of controlled states in this script
-        innerDyn_length = constants.innerDyn_length     # number of inner loop iterations
-        hz = constants.hz                               # horizon period
-        integral_steps = 80 #80
+        inner_loop = constants.inner_loop # number of inner loop iterations
+        hz = constants.hz # horizon period
+        integral_steps = 80 # 80 is optimal here but takes longer
 
-        total_innerDyn = (len(t) * innerDyn_length)
+        total_innerDyn = (len(t) * inner_loop)
         dt = 1 / total_innerDyn
         
         print(f"t: {len(t)}, dt: {dt}, total_innerDyn: {total_innerDyn}")
         t_angles = np.arange(0, t[-1] + Ts, Ts)
-
-        # r = 2
-        # f = 0.025
-        # height_i = 2
-        # height_f = 5
-        
-        # (X_ref, X_dot_ref, X_dot_dot_ref, 
-        # Y_ref, Y_dot_ref, Y_dot_dot_ref, 
-        # Z_ref, Z_dot_ref, Z_dot_dot_ref, 
-        # psi_ref) = trajectory_reference(constants, t)
         
         (X_ref, X_dot_ref, X_dot_dot_ref, 
         Y_ref, Y_dot_ref, Y_dot_dot_ref, 
         Z_ref, Z_dot_ref, Z_dot_dot_ref, 
         psi_ref) = traj_ref
         
-        plotl = len(t) # Number of outer control loop iterations
+        outer_loop = len(t) # Number of outer control loop iterations
 
         # Initial states
         zeros = [0] * 11  # Creates a list of 11 zeros
@@ -95,11 +93,11 @@ class Flight_Controller(object):
         omega_total = omega1 - omega2 + omega3 - omega4
 
         # Outer control loop
-        for i in range(plotl - 1):
+        for i in range(outer_loop - 1):
             
             # Compute remaining time to avoid overshooting        
             remaining_time = tf - i * (tf / len(t))
-            print(f"Iteration: {i+1}/{plotl - 1}, remaining time in trajectory: {np.round(remaining_time)}s ", end="\r")
+            print(f"Iteration: {i+1}/{outer_loop - 1}, remaining time in trajectory: {np.round(remaining_time)}s ", end="\r")
             
             dt = min(dt, remaining_time)  # Adjust dt dynamically
             
@@ -111,12 +109,12 @@ class Flight_Controller(object):
                 psi_ref[i + 1, 1], states, constants
             )
 
-            Phi_ref = np.ones(innerDyn_length + 1) * phi_ref
-            Theta_ref = np.ones(innerDyn_length + 1) * theta_ref
+            Phi_ref = np.ones(inner_loop + 1) * phi_ref
+            Theta_ref = np.ones(inner_loop + 1) * theta_ref
 
-            Psi_ref = np.zeros(innerDyn_length + 1)
-            for yaw_step in range(innerDyn_length + 1):
-                Psi_ref[yaw_step] = psi_ref[i,1] + (psi_ref[i + 1, 1]-psi_ref[i,1])/(Ts*innerDyn_length)*Ts*(yaw_step)
+            Psi_ref = np.zeros(inner_loop + 1)
+            for yaw_step in range(inner_loop + 1):
+                Psi_ref[yaw_step] = psi_ref[i,1] + (psi_ref[i + 1, 1]-psi_ref[i,1])/(Ts*inner_loop)*Ts*(yaw_step)
 
             for ang_row in range(1, len(Phi_ref)):
                 ref_angles_total.append([Phi_ref[ang_row], Theta_ref[ang_row], Psi_ref[ang_row]])
@@ -133,7 +131,7 @@ class Flight_Controller(object):
             # Inner control loop
             k_ref_local = 0
             current_hz = hz
-            for i_inner in range(innerDyn_length):
+            for _ in range(inner_loop):
                 Ad, Bd, Cd, x_dot, y_dot, z_dot, phit, phi_dot, thetat, theta_dot, psit, psi_dot = LPV(constants, states, omega_total)
                 velocityXYZ_total.append([x_dot, y_dot, z_dot])
 
@@ -153,21 +151,19 @@ class Flight_Controller(object):
                 prog = MathematicalProgram()
                 du = prog.NewContinuousVariables(current_hz * Bd.shape[1], "du")
 
-                # Cost: 0.5*du'Hdb*du + ft'du
-                # ft = [x_aug_t', r']*Fdbt -> first construct ft
+                # Cost: 0.5*du^T Hdb du + ft^T du
                 x_aug_t_r = np.concatenate((x_aug_t, r.flatten()))
                 ft = x_aug_t_r @ Fdbt
                 
-                # Add quadratic cost
-                # Hdb must be symmetric positive semidefinite
+                # Add quadratic cost: Hdb must be symmetric positive semidefinite
                 # Cost: 0.5 * du^T Hdb du + ft du
                 # Drake's AddQuadraticCost takes Q, b, c with cost = (1/2) x'Qx + b'x + c
-                # Here Q = Hdb, b = ft, c = 0
-                # prog.AddQuadraticCost(0.5*du.T @ Hdb @ du + ft @ du)
+                # prog.AddQuadraticCost(0.5*du.T @ Hdb @ du + ft @ du) less efficient
                 prog.AddQuadraticCost(Q=Hdb, b=ft, c=0, vars=du)
 
                 solver = OsqpSolver()
                 result = solver.Solve(prog)
+                
                 if result.is_success():
                     du_sol = result.GetSolution(du)
                 else:
@@ -185,17 +181,6 @@ class Flight_Controller(object):
                 omega1, omega2, omega3, omega4 = U_to_omega(np.array([U1,U2,U3,U4]), constants.M_inv)
 
                 omega_total = omega1 - omega2 + omega3 - omega4
-
-                # # Integrate dynamics
-                # def f(t_local, zeta_local):
-                #     return full_dynamics().continuous(constants, zeta_local, U1, U2, U3, U4, omega_total)
-                
-                # T_span = [Ts*i_inner, Ts*(i_inner+1)]
-                # # print("Prepating solve_ivp")
-                # sol = solve_ivp(f, (0, dt), states, first_step=dt)
-                # # print("Got solve_ivp")
-                
-                # states = sol.y[:, -1]
                 
                 sub_dt = dt
                 states_current = states.copy()
@@ -211,19 +196,10 @@ class Flight_Controller(object):
                     # Update states to final of this sub-step
                     states_current = sol.y[:, -1]
                 
-                # After #integral_steps sub-steps, we've integrated a full Ts interval
                 states = states_current
-                
-                
                 states_total = np.vstack((states_total, states[np.newaxis, :]))
 
-                
-                if np.any(np.iscomplex(states)):
-                    print("Imaginary part in states - something is wrong")
-                    break
-
-        # After loops, you can post-process or visualize results
-        print("Simulation finished.")
+        print("MPC Simulation finished.")
         # Example: print final states
         print("Final states:", states_total[-1, 6:9])
         
@@ -236,7 +212,6 @@ class Flight_Controller(object):
         Plots the trajectory and control inputs of the 3D quadrotor.
         """
         
-
         '''
         # Define design parameters
         D2R = np.pi/180
@@ -265,50 +240,27 @@ class Flight_Controller(object):
         
         
         # TRAJECTORY
-        # plt.figure()
-        # ax = plt.axes(projection='3d')
         for ax in [ax_tpv]:
-            # np.array([ut, vt, wt, pt, qt, rt, xt, yt, zt, phit, thetat, psit])
+            # staes are: [ut, vt, wt, pt, qt, rt, xt, yt, zt, phit, thetat, psit]
             ax.plot(zeta[:, 6], zeta[:, 7], zeta[:, 8], 'r--', lw=1, label="Trajectory")
             ax.scatter(zeta[0, 6], zeta[0, 7], zeta[0, 8], color='red', label="Start")
             # print(f"Start: {zeta[0, 6], zeta[0, 7], zeta[0, 8]}")
             ax.scatter(zeta[-1, 6], zeta[-1, 7], zeta[-1, 8], color='green', label="End")
             # print(f"End: {zeta[-1, 6], zeta[-1, 7], zeta[-1, 8]}")
             
-                
             plot_ref_trajectory(constants, t_ref, ax, x=x, y=y, z=z)
             
-            # ax.legend()
-            # ax.set_title(f"3D Trajectory ({name})")
-            # Retrieve limits
-            
         for ax in [ax_non_tpv]:   
-            (X_ref, X_dot_ref, X_dot_dot_ref, 
-            Y_ref, Y_dot_ref, Y_dot_dot_ref,
-            Z_ref, Z_dot_ref, Z_dot_dot_ref, 
-            psi_ref) = traj_ref = trajectory_reference(
-                        constants, t_ref, x=x, y=y, z=z)
+            X_ref,_,_,Y_ref,_,_,Z_ref,_,_,_ = trajectory_reference(constants, t_ref, x=x, y=y, z=z)
 
             # Extract trajectory data
             x_vals = X_ref[:,1]
             y_vals = Y_ref[:,1]
             z_vals = Z_ref[:,1]
-
-            # Plot the trajectory
-            # fig = plt.figure()
-            # ax = fig.add_subplot(111, projection='3d')
             
             ax.plot(x_vals, y_vals, label="Reference Trajectory", color="blue")
             
-        t_ref = np.linspace(t0, tf, len(zeta[:,0]))
-        x_limits = 0 # ax_non_tpv.get_xlim()
-        y_limits = 0 # ax_non_tpv.get_ylim()
-        z_limits = 0 # ax_non_tpv.get_zlim()
-        # plt.savefig(f"{name}_trajectory.png") 
-        # print(f"Saved trajectory plot as {name}_trajectory.png\n")
-        # plt.show()
-        
-        
+        t_ref = np.linspace(t0, tf, len(zeta[:,0]))     
 
         # # ANGLES
         # plt.figure()
@@ -333,7 +285,7 @@ class Flight_Controller(object):
         # plt.savefig(f"{name}_inputs.png")
         # print(f"Saved input plot as {name}_inputs.png")
 
-        return x_limits, y_limits, z_limits, t_ref
+        return t_ref
 
 def fcn():
     constants = Quad_Constants()
