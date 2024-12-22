@@ -50,22 +50,22 @@ if __name__ == "__main__":
     min_start_distance = 1.0  # Minimum distance from start position to any tree
 
     # Generate forest using grid-based approach
-    trees_outside, trees_inside = generate_random_forest_with_grid(
+    trees_outside, fire_zone_trees = generate_random_forest_with_grid(
         grid_size, radius_range, height_range, space_dim, fire_zone, start_pos, min_start_distance
     )
     
     
-    obstacles = trees_outside + trees_inside
+    obstacles = trees_outside + fire_zone_trees
     
     forest = Forest_Plotting()
 
     # Handle different modes
     if args.mode == "3d":
-        forest.visualize_forest(space_dim, trees_outside, fire_zone, start_pos, goal_pos, trees_inside)
+        forest.visualize_forest(space_dim, trees_outside, fire_zone, start_pos, goal_pos, fire_zone_trees)
     elif args.mode == "2d":
         fig = plt.figure(dpi=250)
         ax = fig.add_subplot(1,1,1)
-        forest.visualize_forest_2d(obstacles, fire_zone, start_pos, goal_pos, fire_zone_trees=trees_inside, ax=ax)
+        forest.visualize_forest_2d(obstacles, fire_zone, start_pos, goal_pos, fire_zone_trees=fire_zone_trees, ax=ax)
 
 
         '''
@@ -113,7 +113,7 @@ if __name__ == "__main__":
             exit()
         goal_pos = (*adjusted_goal_pos, 0)
 
-        fig, ax = forest.visualize_forest(space_dim[:2], trees_outside, fire_zone, start_pos, goal_pos, trees_inside)
+        fig, ax = forest.visualize_forest(space_dim[:2], trees_outside, fire_zone, start_pos, goal_pos, fire_zone_trees)
         
         start_time = time.perf_counter()
         path, tree = rrt_star(
@@ -209,7 +209,7 @@ if __name__ == "__main__":
             print("No valid goal position could be determined.")
             exit()
 
-        fig, ax_tpv, ax_non_tpv = forest.visualize_forest(space_dim, trees_outside, fire_zone, start_pos, goal_pos, fire_zone_trees=trees_inside)
+        fig, ax_tpv, ax_non_tpv = forest.init_plot(space_dim)
         
         start_time = time.perf_counter()
         path, tree = rrt_star(
@@ -227,7 +227,8 @@ if __name__ == "__main__":
             smoothed_path = smooth_path_with_collision_avoidance(path, obstacles, num_points=len(t_ref))
                        
             smoothed_path_x, smoothed_path_y = smoothed_path[:2]
-            smooth_z = np.ones_like(smoothed_path_y) * 8.5
+            trajectory_height = 4
+            smooth_z = np.ones_like(smoothed_path_y) * trajectory_height
             
             # Visualize in 2D
             path_x, path_y = zip(*path)
@@ -257,17 +258,18 @@ if __name__ == "__main__":
             if extinguishing_path:
                 ext_x, ext_y = zip(*extinguishing_path)
                 for ax in [ax_tpv, ax_non_tpv]:
-                    ax.plot(ext_x, ext_y, color='orange', linewidth=1, linestyle='-', label='Extinguishing Path')
+                    ax.plot(ext_x, ext_y, color='orangered', linewidth=0.5, linestyle='--', label='Extinguishing Path')
             
             
             # Smooth the path
             smoothed_path = smooth_path_with_collision_avoidance(path, obstacles, num_points=len(t))
                        
             smoothed_path_x, smoothed_path_y = smoothed_path[:2]
-            smooth_z = np.ones_like(smoothed_path_y) * 8.5
+            smooth_z = np.ones_like(smoothed_path_y) * trajectory_height
             
+            forrest_info = [space_dim, trees_outside, fire_zone_trees, fire_zone, start_pos, goal_pos]
             # Animate the quadrotor
-            Animation().animate_quadrotor(fig, ax_tpv, ax_non_tpv, constants, states_total, t,
+            Animation().animate_quadrotor(fig, ax_tpv, ax_non_tpv, constants, states_total, t, forrest_info,
                                           xr=smoothed_path_x, yr=smoothed_path_y, zr=smooth_z)
         
         else:
@@ -277,7 +279,7 @@ if __name__ == "__main__":
     ### A*
     elif args.mode == "a_star_2d":
         # Combine trees for obstacle input
-        obstacles = trees_outside + trees_inside
+        obstacles = trees_outside + fire_zone_trees
         
         # Run A* Pathfinding
         print("\n=== A* Pathfinding ===")
@@ -292,7 +294,7 @@ if __name__ == "__main__":
             exit()
         goal_pos = (*adjusted_goal_pos, 0)
         
-        forest.visualize_forest(space_dim[:2], trees_outside, fire_zone, start_pos, goal_pos, trees_inside)
+        forest.visualize_forest(space_dim[:2], trees_outside, fire_zone, start_pos, goal_pos, fire_zone_trees)
         
         start_time = time.perf_counter()
         path, visited_positions = a_star_2d(start_pos[:2], goal_pos[:2], obstacles, space_dim[:2], eps=0.5)

@@ -28,7 +28,7 @@ def adjust_goal_position_smoothly(goal_pos, obstacles, inflation, dim=2, step_si
         
     raise RuntimeError("Failed to adjust goal position within constraints.")
 
-def generate_extinguishing_path(fire_zone, laps=8, step_size=1.0, inward_translation=2.1):
+def generate_extinguishing_path(fire_zone, laps=8, step_size=1.1, inward_translation=2.1):
     """
     Generate a spiral-like extinguishing path by following the boundary of the fire zone
     and progressively shrinking inward.
@@ -46,9 +46,9 @@ def generate_extinguishing_path(fire_zone, laps=8, step_size=1.0, inward_transla
     current_zone = np.column_stack((x_spline, y_spline))
     
     for _ in range(laps):        
-        
         # NEEDS TO BE FIXED
-        print(f"len: {len(current_zone)}")
+        # print(f"len: {len(current_zone)}")
+        
         # Add current zone boundary to path
         extinguishing_path.extend(current_zone)
 

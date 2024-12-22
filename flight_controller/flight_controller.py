@@ -42,12 +42,12 @@ class Flight_Controller(object):
         controlled_states = constants.controlled_states # number of controlled states in this script
         inner_loop = constants.inner_loop # number of inner loop iterations
         hz = constants.hz # horizon period
-        integral_steps = 80 # 80 is optimal here but takes longer
+        integral_steps = 20 # 80 is optimal here but takes longer
 
-        total_innerDyn = (len(t) * inner_loop)
-        dt = 1 / total_innerDyn
+        total_inner_loop = (len(t) * inner_loop)
+        dt = 1 / total_inner_loop
         
-        print(f"t: {len(t)}, dt: {dt}, total_innerDyn: {total_innerDyn}")
+        print(f"t: {len(t)}, dt: {dt}, total_inner_loop: {total_inner_loop}")
         t_angles = np.arange(0, t[-1] + Ts, Ts)
         
         (X_ref, X_dot_ref, X_dot_dot_ref, 
