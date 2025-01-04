@@ -59,10 +59,10 @@ For additional details, including more images and videos of our results, please 
   ![Fig. 2 – RRT\* Path in dense forest](img/Smoothed_RRT_star_forrest.png)
 
 - **Fig. 4** – *Quadrotor dynamics force diagram*  
-  ![Fig. 4 – Quadrotor Dynamics Force Diagram]([img/Screenshot 2024-12-16 at 8.04.23 PM.png]([url](https://github.com/cedrichld/mpc-fire-quadrotor/blob/main/img/Screenshot%202024-12-16%20at%208.04.23%20PM.png))
+  ![Fig. 4 – Quadrotor Dynamics Force Diagram]([url](https://github.com/cedrichld/mpc-fire-quadrotor/blob/main/img/Screenshot%202024-12-16%20at%208.04.23%20PM.png)
 
 - **Fig. 5** – *Final Costs used in the LPV-MPC*  
-  ![Fig. 5 – LPV-MPC Cost Function]([img/Screenshot 2024-12-16 at 8.51.35 PM.png]([url](https://github.com/cedrichld/mpc-fire-quadrotor/blob/main/img/Screenshot%202024-12-16%20at%208.51.35%20PM.png)))
+  ![Fig. 5 – LPV-MPC Cost Function]([url](https://github.com/cedrichld/mpc-fire-quadrotor/blob/main/img/Screenshot%202024-12-16%20at%208.51.35%20PM.png))
 
 - **Fig. 7** – *LPV-MPC with 30 Integral steps (Low Precision)*  
   ![Fig. 7 – MPC with 30 Integral Steps](img/3d_Quad_trajectory_30_integral_steps.png)
@@ -72,9 +72,7 @@ For additional details, including more images and videos of our results, please 
 
 **Demo Video**  
 A short video of the drone navigating the randomized 3D forest can be viewed here:  
-[Demo Video Link](img/quadrotor_trajectory_TPV_forest3.mp4)  
-
-*(Replace the above links with your actual file or URL references.)*
+[Demo Video Link](img/quadrotor_trajectory_TPV_forest3.mp4)
 
 For further details and additional videos/figures, please consult the accompanying **paper**.
 
@@ -104,7 +102,3 @@ By project completion, we aim to:
 - Generate a **collision-free** path from the drone’s start location to the fire zone using **RRT\***.  
 - Employ an **LPV-MPC** that accurately follows the 3D path, adapting in real time to changes in the drone’s state.  
 - Demonstrate the system in a **Gazebo-based** simulation, showing the quadrotor successfully navigating dense forests and extinguishing a simulated fire. This integrated solution will provide a foundation for more advanced aerial firefighting applications in real-world scenarios.
-
----
-
-Feel free to adapt these references, images, and video links to match your repository’s structure. For more technical details, analyses, and additional demonstrations, **consult the full paper** and supplementary materials.
