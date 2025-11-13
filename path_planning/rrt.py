@@ -2,7 +2,7 @@
 # rrt.py
 import numpy as np
 from tqdm import tqdm
-from obstacles import SphereObstacle
+# from obstacles import SphereObstacle
 
 class Node:
     def __init__(self, position, parent=None):

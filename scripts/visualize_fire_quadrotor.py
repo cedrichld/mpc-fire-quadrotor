@@ -113,7 +113,9 @@ if __name__ == "__main__":
             exit()
         goal_pos = (*adjusted_goal_pos, 0)
 
-        fig, ax = forest.visualize_forest(space_dim[:2], trees_outside, fire_zone, start_pos, goal_pos, fire_zone_trees)
+        fig, _, ax = forest.init_plot(space_dim)
+        
+        forest.visualize_forest_2d(trees_outside, fire_zone, start_pos, goal_pos, fire_zone_trees, ax=ax)
         
         start_time = time.perf_counter()
         path, tree = rrt_star(
@@ -181,7 +183,10 @@ if __name__ == "__main__":
             if extinguishing_path:
                 ext_x, ext_y = zip(*extinguishing_path)
                 ax.plot(ext_x, ext_y, color='orange', linewidth=1, linestyle='-', label='Extinguishing Path')
-                
+            
+            plt.legend()
+            plt.gca().set_aspect('equal', adjustable='box')
+            plt.show()  
         else:
             print(f"RRT* failed to find a path in {elapsed_time:.2f} ms.")
         

@@ -225,8 +225,7 @@ class Animation:
                 np.sin(np.radians(smoothed_azim + 180 + 45))
             ]) # Norm is 1
             
-            # Outside trees
-            for tree_plot, tree_obj in self.tree_plots_outside:
+            def tree_dynamic_plotting(tree_plot, tree_obj):
                 # Tree center relative to drone
                 tree_rel = np.array([tree_obj.center[0] - xt, tree_obj.center[1] - yt])
                 dist = np.linalg.norm(tree_rel) 
@@ -235,7 +234,7 @@ class Animation:
                     # Safety check; if the tree is basically at the drone's position
                     tree_plot.set_visible(False)
                     print(f"TREE {np.round(tree_obj.center)} IS IN COLLISION, Drone=({xt:.2f}, {yt:.2f}, {zt:.2f})")
-                    continue
+                    return
                 
                 tree_rel_unit = tree_rel / dist
                 dotp = np.dot(forward_vector, tree_rel_unit) # Like this we have: -1 < dotp < 1
@@ -256,78 +255,38 @@ class Animation:
                     if angle_deg < self.angle_thresh:
                         alpha_angle = 1 - (self.angle_thresh - self.alpha_angle_factor * angle_deg) / self.angle_thresh
                         alpha_angle = max(alpha_angle, 0.0)
-                    else:
-                        alpha_angle = 1.0
                         
-                    distMin = tree_obj.radius + 0.1
+                        distMin = tree_obj.radius + 0.1
                     
-                    if dist < distMin:
-                        alpha_dist = 0
-                        print("\nDist min JUST HIT, drone at 0.1m from trunk!\n")
-                    else:
+                        if dist < distMin:
+                            tree_plot.set_visible(False)
+                            print("\nDist min JUST HIT, drone at 0.1m from trunk!\n")
+                            return
+                        
                         alpha_dist = self.alpha_dist_factor * dist / tree_view_range
                         alpha_dist = max(alpha_dist, 0.0)
+                        raw_alpha = alpha_dist * alpha_angle
+                        
+                    else:
+                        raw_alpha = 1.0
                     
-                    raw_alpha = alpha_dist * alpha_angle
                     alpha = max(min(raw_alpha, 1.0), 0.0)
                     # print(f"Drone: ({xt:.2f}, {yt:.2f}, {zt:.2f}), distance: {round(dist, ndigits=1)}, angle: {round(angle_deg)}, alpha: {round(alpha, ndigits=3)}")
                     tree_plot.set_alpha(alpha)
+                    
                     if alpha == 0:
                         tree_plot.set_visible(False)
 
                 else:
                     tree_plot.set_visible(False)
+            
+            # Outside trees
+            for tree_plot, tree_obj in self.tree_plots_outside:
+                tree_dynamic_plotting(tree_plot, tree_obj)
 
             # Fire zone trees
             for tree_plot, tree_obj in self.tree_plots_fire_zone:
-                # Tree center relative to drone
-                tree_rel = np.array([tree_obj.center[0] - xt, tree_obj.center[1] - yt])
-                dist = np.linalg.norm(tree_rel) 
-
-                if dist < 1e-9:
-                    # Safety check; if the tree is basically at the drone's position
-                    tree_plot.set_visible(False)
-                    print(f"TREE {np.round(tree_obj.center)} IS IN COLLISION, Drone=({xt:.2f}, {yt:.2f}, {zt:.2f})")
-                    continue
-                
-                tree_rel_unit = tree_rel / dist
-                dotp = np.dot(forward_vector, tree_rel_unit) # Like this we have: -1 < dotp < 1
-                
-                # bounding box logic
-                in_front_bounds = (
-                    x_min - p_thresh * tree_obj.radius <= tree_obj.center[0] <= x_max + p_thresh * tree_obj.radius + tree_view_range
-                    and
-                    y_min - p_thresh * tree_obj.radius <= tree_obj.center[1] <= y_max + p_thresh * tree_obj.radius + tree_view_range
-                )
-
-                if dotp > self.dotp_thresh and in_front_bounds:
-                    tree_plot.set_visible(True)
-                    
-                    # 1) **Angle-based factor**: 
-                    # angle in [0,180], where 0 => directly in front, 180 => directly behind
-                    angle_deg = np.degrees(np.arccos(dotp))
-                    
-                    if angle_deg < self.angle_thresh:
-                        alpha_angle = 1 - self.alpha_angle_factor * (90 - angle_deg) / 90
-                        alpha_angle = max(min(alpha_angle, 1.0), 0.0)
-                    else:
-                        alpha_angle = 1.0
-                        
-                    distMin = tree_obj.radius + 0.1
-                    
-                    if dist < distMin:
-                        alpha_dist = 0
-                        print("\nDist min JUST HIT, drone at 0.1m from trunk!\n")
-                    else:
-                        alpha_dist = self.alpha_dist_factor * dist / tree_view_range
-                        alpha_dist = max(min(alpha_dist, 1.0), 0.0)
-                    
-                    raw_alpha = alpha_dist * alpha_angle
-                    alpha = max(min(raw_alpha, 1.0), 0.0)
-                    tree_plot.set_alpha(alpha)
-
-                else:
-                    tree_plot.set_visible(False)
+                tree_dynamic_plotting(tree_plot, tree_obj)
 
             # Plot trajectory so far
             trajectory_tpv.set_data(states[:frame, 6], states[:frame, 7])
@@ -386,6 +345,7 @@ class Animation:
         
         # Tune step if you want fewer frames in the final video
         step = self.step
+        # 10 fps for step 1
         anim = animation.FuncAnimation(
             fig, update, frames=range(0, len(t), step), interval=30*step, blit=False
         )

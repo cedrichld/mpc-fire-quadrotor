@@ -30,7 +30,7 @@ def get_nearby_nodes(tree, new_node, radius):
             nearby_nodes.append(node)
     return nearby_nodes
 
-def rewire_tree(tree, new_node, nearby_nodes):
+def rewire_tree(new_node, nearby_nodes):
     """
     Rewire nearby nodes if connecting them through the new node reduces their cost.
     """
@@ -58,20 +58,21 @@ def refine_path_line_segments(path, obstacles, inflation, dim, n_points=6):
 
     def adjust_point(point, obstacles, inflation):
         """Move the point along the line away from the closest obstacle at the inflation boundary."""
-        closest_obstacle = None
+        closest_obstacle_pos = None
+        closest_obstacle_rad = None
         min_dist = float('inf')
         
         for obstacle in obstacles:
-            obstacle_center = obstacle.center[:dim]
-            dist = np.linalg.norm(point - obstacle_center)
+            dist = np.linalg.norm(point - obstacle.center[:dim])
             if dist < min_dist:
                 min_dist = dist
-                closest_obstacle = obstacle_center
+                closest_obstacle_pos = obstacle.center[:dim]
+                closest_obstacle_rad = obstacle.radius
 
         # If the point is within the inflation radius, adjust it
-        if min_dist < inflation and closest_obstacle is not None:
-            direction = (point - closest_obstacle) / np.linalg.norm(point - closest_obstacle)  # Normalize
-            adjusted_point = closest_obstacle + direction * inflation
+        if min_dist < closest_obstacle_rad + inflation and closest_obstacle_pos is not None:
+            direction = (point - closest_obstacle_pos) / np.linalg.norm(point - closest_obstacle_pos)  # Normalize
+            adjusted_point = closest_obstacle_pos + direction * (closest_obstacle_rad + inflation)
             return adjusted_point
         return point
 
@@ -90,14 +91,195 @@ def refine_path_line_segments(path, obstacles, inflation, dim, n_points=6):
     refined_path.append(path[-1])  # Add the final endpoint
     return refined_path
 
+
+def is_sufficiently_smooth(path, threshold=0.1):
+    if not path or len(path) < 2:
+        return False
+    for i in range(len(path) - 1):
+        if distance(path[i], path[i+1]) >= threshold:
+            return False
+    return True
+
+def a_star(start, goal, obstacles, space_dim, inflation=0.0):
+    """
+    Placeholder for an A* routine returning the path from start to goal.
+    Return None if no path found, or a list of (x, y) positions otherwise.
+    """
+    # You can replace with your own A* implementation.
+    # Here we simply return a direct line if no collision (for illustration).
+    steps = 50
+    path = []
+    start_arr = np.array(start)
+    goal_arr = np.array(goal)
+    diff = goal_arr - start_arr
+    for i in range(steps + 1):
+        pt = start_arr + (i / steps) * diff
+        if is_point_in_collision(pt, obstacles, inflation):
+            return None
+        path.append(tuple(pt))
+    return path
+
+def find_most_efficient_path(candidate_points, start_pos, goal_pos, obstacles, space_dim, inflation=0.0):
+    """
+    Uses A* (or a variant) on each candidate path section to produce 
+    the most efficient overall path if it exists.
+    """
+    # For simplicity, pick the best path among candidates
+    best_path = None
+    best_cost = float('inf')
+    for cpath in candidate_points:
+        # Combine with A* from start to first candidate, then candidate to goal
+        segment1 = a_star(start_pos, cpath, obstacles, space_dim, inflation)
+        if segment1 is None:
+            continue
+        segment2 = a_star(cpath, goal_pos, obstacles, space_dim, inflation)
+        if segment2 is None:
+            continue
+        
+        full_path = segment1[:-1] + segment2  # join (avoid duplicating cpath)
+        cost = sum(distance(full_path[i], full_path[i+1]) for i in range(len(full_path)-1))
+        if cost < best_cost:
+            best_cost = cost
+            best_path = full_path
+    return best_path
+
+def generate_line_samples(start_pos, goal_pos, obstacles, inflation=0.0, n_samples=100):
+    """
+    Returns up to n_samples points along the line from start to goal
+    that are not in collision with the given obstacles.
+    """
+    start_arr = np.array(start_pos)
+    goal_arr = np.array(goal_pos)
+    
+    valid_samples = []
+    # Either use a uniform parametric range [0..1], or random for each sample
+    # Here we'll use uniform increments
+    for t in np.linspace(0, 1, n_samples):
+        candidate_pt = start_arr + t * (goal_arr - start_arr)
+        if not is_point_in_collision(candidate_pt, obstacles, inflation):
+            valid_samples.append(tuple(candidate_pt))
+    
+    return valid_samples
+
+# Line-samples based RRT*
+def ls_rrt_star(
+    start_pos, goal_pos, obstacles, space_dim, 
+    samples_per_d=100, smoothness_thresh=0.1, inflation=0.65
+):
+    """
+    RRT*-style controller that samples around a reference line,
+    attempts to find a path at each iteration, stores the best path,
+    and stops early once smoothness is sufficient or if max_iter is reached.
+    """
+    if distances_from_line is None:
+        distances_from_line = [0.1 * i for i in range(1, 11)]  # 0.1 to 1.0
+        samples_per_ = np.ones(len(distances_from_line)) * samples_per_d
+    
+    # fallback: sample directly from start->goal line
+    def line_sample_fn():
+        # parametric sample from start to goal
+        t = np.random.rand()
+        return np.array(start_pos) + t*(np.array(goal_pos) - np.array(start_pos))
+    
+    def sample_at_d(d):
+        line_center_pt = line_sample_fn()  # a random point on the reference line
+        # Sample a random direction orthogonal in 2D (can be extended for higher dim)
+        random_angle = 2 * np.pi * np.random.rand()
+        offset = np.array([np.cos(random_angle), np.sin(random_angle)]) * d
+        candidate_pt = line_center_pt + offset
+        # Clip to space boundary
+        candidate_pt = np.clip(candidate_pt, [0, 0], space_dim)
+        # Check collision
+        if is_point_in_collision(candidate_pt, obstacles, inflation):
+            sample_at_d()
+        else:
+            return candidate_pt
+    
+    line_samples = generate_line_samples(start_pos, goal_pos, obstacles, inflation, n_samples=100)
+    max_iter = len(distances_from_line) * samples_per_d + len(line_samples)
+    
+    best_paths_per_iteration = []
+    best_path_so_far = None
+
+    iteration = tqdm.tqdm(total=max_iter, desc=f"RRT* Pathfinding", unit="steps", leave=False)
+    
+    # Generate candidate points around the line
+    candidate_points = [line_samples]
+    for d in distances_from_line:
+        for _ in samples_per_[d]:
+            candidate_pt = sample_at_d(d)
+            candidate_points.append(candidate_pt)
+            iteration.update(1)
+            
+    
+            # Among the candidate points, find the most efficient A* path
+            new_best_path = find_most_efficient_path(
+                candidate_points, start_pos, goal_pos, obstacles, space_dim, inflation
+            )
+    
+            if new_best_path is not None:
+                # Compare with global best so far
+                if best_path_so_far is None:
+                    best_path_so_far = new_best_path
+                else:
+                    new_cost = sum(distance(new_best_path[i], new_best_path[i+1]) 
+                                    for i in range(len(new_best_path)-1))
+                    old_cost = sum(distance(best_path_so_far[i], best_path_so_far[i+1]) 
+                                    for i in range(len(best_path_so_far)-1))
+                    if new_cost < old_cost:
+                        best_path_so_far = new_best_path
+    
+            # Store best path for the iteration (or None if none is found yet)
+            best_paths_per_iteration.append(best_path_so_far)
+
+            # Early stop if we have a path and it's sufficiently smooth
+            if best_path_so_far and is_sufficiently_smooth(best_path_so_far, smoothness_thresh):
+                print(f"Stopping early at iteration {iteration+1}, path is smooth enough.")
+                break
+            
+    # Final A* run from start to goal (could be any final improvement or post-check)
+    final_path = a_star(start_pos, goal_pos, obstacles, space_dim, inflation)
+    if final_path is not None:
+        # Compare final path cost to best path so far
+        if best_path_so_far is not None:
+            new_cost = sum(distance(final_path[i], final_path[i+1]) 
+                        for i in range(len(final_path)-1))
+            old_cost = sum(distance(best_path_so_far[i], best_path_so_far[i+1]) 
+                        for i in range(len(best_path_so_far)-1))
+            if new_cost < old_cost:
+                best_path_so_far = final_path
+        else:
+            best_path_so_far = final_path
+
+    return best_paths_per_iteration, best_path_so_far
+
+
+
+
+
+
+
+
+
+
+
+
 def rrt_star(
-    start_pos, goal_pos, obstacles, space_dim, max_iter=300, step_size=1.5,
+    start_pos, goal_pos, obstacles, space_dim, t_ref=None, max_iter=300, step_size=1.5,
     base_radius=0.1, retries=10, dim=2, goal_bias=0.5, inflation=0.65
 ):
     best_path = None
     best_cost = float("inf")
     tree = []  # Ensure tree is initialized
+    
+    # start_pos, goal_pos = start_pos[:dim], goal_pos[:dim]
+    # start_node = Node(start_pos)
+    # goal_node = Node(goal_pos)
+    # tree = [start_node, goal_node]
+    # best_path = [start_node.position, goal_node.position]
+    # best_cost = 0
 
+    
     def calculate_path_cost(path):
         return sum(distance(path[i], path[i + 1]) for i in range(len(path) - 1))
 
@@ -143,11 +325,7 @@ def rrt_star(
             nearby_indices = np.where(distances <= radius)[0]
             nearby_nodes = [tree[i] for i in nearby_indices]
 
-            for nearby_node in nearby_nodes:
-                new_cost = new_node.cost + distance(new_node.position, nearby_node.position)
-                if new_cost < nearby_node.cost:
-                    nearby_node.parent = new_node
-                    nearby_node.cost = new_cost
+            rewire_tree(new_node, nearby_nodes)
 
             # Check if we reached the goal
             if distance(new_position, goal_pos) < step_size:
@@ -164,17 +342,14 @@ def rrt_star(
                     # print(f"\rRRT* Retry {retry + 1}: Path found with cost {path_cost:.2f} on iteration {iteration + 1}", end="")
                 found_path = True
                 break
-
-        if not found_path:
-            print(f"\rRRT* Retry {retry + 1}: No path found within max iterations.", end="")
-
+    
     # Refine the best path if found
     if best_path:
-        best_path = refine_path_line_segments(best_path, obstacles, inflation, dim)
+        best_path = refine_path_line_segments(best_path, obstacles, inflation, dim)#, **({'n_points': t_ref} if t_ref is not None else {})) # if t_ref is defined
     else:
         sub_trees = []
 
-    print(f"Final best path cost: {best_cost:.2f} on iteration {iteration + 1}" if best_path else "\nNo path found.")
+    print(f"Final best path cost: {best_cost:.2f}" if best_path else "\nNo path found.") #  on iteration {iteration + 1}
     return best_path, tree
 
 

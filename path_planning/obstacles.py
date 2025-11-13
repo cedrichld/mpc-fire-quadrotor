@@ -11,7 +11,7 @@ class CylinderObstacle:
 
     def is_inside(self, point, inflation=0.0):
         """
-        Check if a point is inside the cylindrical obstacle.
+        Check if a point is inside a given cylindrical obstacle.
 
         Args:
             point (tuple or list): The position to check (x, y), or (x, y, z).

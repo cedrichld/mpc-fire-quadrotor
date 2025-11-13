@@ -42,7 +42,7 @@ class Flight_Controller(object):
         controlled_states = constants.controlled_states # number of controlled states in this script
         inner_loop = constants.inner_loop # number of inner loop iterations
         hz = constants.hz # horizon period
-        integral_steps = 20 # 80 is optimal here but takes longer
+        integral_steps = 80 # 80 is optimal here but takes longer
 
         total_inner_loop = (len(t) * inner_loop)
         dt = 1 / total_inner_loop

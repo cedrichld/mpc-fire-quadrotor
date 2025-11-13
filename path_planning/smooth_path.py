@@ -61,6 +61,7 @@ def smooth_path_with_collision_avoidance(path, obstacles, num_points=200, smooth
 
     if z_smooth is not None:
         return np.array(x_final), np.array(y_final), np.array(z_final)
+    
     return np.array(x_final), np.array(y_final)
 
 
