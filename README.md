@@ -4,11 +4,27 @@
   <img src="img/quadrotor_trajectory_TPV_forest3.gif" alt=".gif visualization" height="400">
 </p>
 
-### **Project Description**
+## **Project Description**
 
 We are developing a 3D simulation of a quadcopter drone navigating through a **dense forest** to extinguish a fire. The simulation combines **path planning** with **RRT\***, **dynamic trajectory optimization**, and **advanced control strategies** (e.g., **LPV-MPC**). The goal is to explore efficient algorithms for navigating cluttered environments while maintaining dynamic constraints, all while allowing real-time adjustments. Ultimately, the project is planned for integration within advanced visualization frameworks such as Gazebo.
 
 For additional details, including more images and videos of our results, please consult the accompanying **paper**.
+
+## Math and Force Body Diagram:
+<p align="center">
+  <img src="img/drone_body_forces_diagram.png" alt="drone FBD" width="40%">
+</p>
+<p align="center"><em>Force Body Diagram</em></p>
+
+<p align="center">
+  <img src="img/drone_dynamics.png" alt="drone FBD" width="40%">
+</p>
+<p align="center"><em>Dynamics Equations.</em></p>
+
+<p align="center">
+  <img src="img/mpc_math_final_matrix.png" alt="drone FBD" width="50%">
+</p>
+<p align="center"><em>MPC Final Cost - see paper for more info.</em></p>
 
 ---
 
