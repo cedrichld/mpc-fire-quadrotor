@@ -48,28 +48,6 @@ For additional details, including more images and videos of our results, please 
 
 ---
 
-### **Current Progress**
-
-1. **Path Planning with RRT\***:
-   - RRT\* quickly finds collision-free 3D paths in dense forests, outperforming simpler algorithms in heavily cluttered environments.
-   - Implementation includes path smoothing and obstacle clearance checks.
-
-2. **Dense Forest Representation**:
-   - Random generation of cylindrical trees (Fig. 1), each placed with a specified radius and height for collision detection.  
-   - A spline-based fire zone is generated at a chosen location in the forest as the final objective.
-
-3. **LPV-MPC Integration**:
-   - Developed a **Linear Parameter-Varying** model around the quadrotor’s current state to handle nonlinear dynamics.  
-   - Solved a Quadratic Program (QP) at each timestep to minimize tracking error (Fig. 5) while meeting control constraints.
-   - Demonstrated different integral steps in the controller (30 vs. 80) to show the effect on path tracking accuracy (Figs. 7 and 8).
-
-4. **Preliminary Results**:
-   - The quadrotor successfully follows an RRT\*-generated path (Fig. 2).  
-   - Some small path deviations appear, attributed to discretization and tuning of the LPV-MPC.  
-   - Higher integral steps in the MPC yield more precise tracking but increase computational effort.
-
----
-
 ### **Figures & Media**
 
 - **Fig. 1** – *Randomly Generated 3D Forest map*  
@@ -95,30 +73,3 @@ A short video of the drone navigating the randomized 3D forest can be viewed her
 [Demo Video Link](img/quadrotor_trajectory_TPV_forest3.mp4)
 
 For further details and additional videos/figures, please consult the accompanying **paper**.
-
----
-
-### **Next Steps**
-
-1. **Refining Fire-Zone Interaction**:
-   - Adapt the RRT\* planner for local maneuvers inside the fire zone to simulate extinguishing behaviors more accurately.
-
-2. **Full Integration & Advanced Visualization**:
-   - Incorporate Gazebo for a more realistic 3D environment, including potential sensor modeling (e.g., thermal imaging).
-
-3. **Mass Variation & Future Enhancements**:
-   - Introduce a variable mass (e.g., water payload decreasing over time) into the LPV model to simulate dynamics changes.
-   - Explore real-world forest data or geospatial imagery for more realistic layouts.
-
-4. **Controller Tuning & Stability**:
-   - Further tune the MPC horizon, integral steps, and cost function to reduce path deviation in increasingly cluttered environments.
-   - Evaluate alternative control methods or different linearization schemes for enhanced robustness.
-
----
-
-### **End Goal**
-
-By project completion, we aim to:
-- Generate a **collision-free** path from the drone’s start location to the fire zone using **RRT\***.  
-- Employ an **LPV-MPC** that accurately follows the 3D path, adapting in real time to changes in the drone’s state.  
-- Demonstrate the system in a **Gazebo-based** simulation, showing the quadrotor successfully navigating dense forests and extinguishing a simulated fire. This integrated solution will provide a foundation for more advanced aerial firefighting applications in real-world scenarios.
